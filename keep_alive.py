@@ -1,27 +1,15 @@
-# -*-*- SERVERNI DOIMIY ISHLASHI -*-*-
-# -*-*- Botni 24/7 ishlashini ta'minlash -*-*-
-
 from flask import Flask
-import threading
+from threading import Thread
 
 app = Flask('')
 
-# ==============================================================================
-# -*-*- ASOSIY SAHIFA -*-*-
-# ==============================================================================
 @app.route('/')
 def home():
-    return "Bot is alive!"
+    return "Bot is running!"
 
-# ==============================================================================
-# -*-*- SERVERNI ISHGA TUSHIRISH -*-*-
-# ==============================================================================
 def run():
     app.run(host='0.0.0.0', port=8080)
 
-# ==============================================================================
-# -*-*- DOIMIY ISHLASH FUNKSIYASI -*-*-
-# ==============================================================================
 def keep_alive():
-    server = threading.Thread(target=run)
-    server.start()
+    t = Thread(target=run)
+    t.start()
