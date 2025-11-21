@@ -138,24 +138,30 @@ def get_category_keyboard(category_type, category_name=None):
     
     if category_type == "main":
         categories = all_categories["main_categories"]
-    elif category_type == "sub":
-        categories = all_categories["sub_categories"].get(category_name, [])
-    
-    keyboard = []
-    row = []
-    
-    for i, category in enumerate(categories):
-        row.append(KeyboardButton(text=category))
-        if len(row) == 2 or i == len(categories) - 1:
-            keyboard.append(row)
-            row = []
-    
-    if category_type == "main":
+        
+        keyboard = []
+        row = []
+        
+        for i, category in enumerate(categories):
+            row.append(KeyboardButton(text=category))
+            if len(row) == 2 or i == len(categories) - 1:
+                keyboard.append(row)
+                row = []
+        
         keyboard.append([KeyboardButton(text="🔙 Asosiy Menyu")])
-    else:
-        keyboard.append([KeyboardButton(text="🔙 Orqaga")])
+        
+        return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     
-    return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    else:
+        # ICHKI KATEGORIYALAR UCHUN SODDA KLAVIATURA
+        # Faqat "O'tkazib yuborish" va "Orqaga" tugmalari
+        return ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="⏭️ O'tkazib yuborish")],
+                [KeyboardButton(text="🔙 Orqaga")]
+            ],
+            resize_keyboard=True
+        )
     
 # ==============================================================================
 # -*-*- ASOSIY KATEGORIYALAR KLAVIATURASI -*-*-
@@ -829,29 +835,48 @@ async def process_main_category(message: types.Message, state: FSMContext):
         await state.clear()
         return
         
+    # ASOSIY KATEGORIYANI SAQLAYMIZ
     await state.update_data(main_category=message.text)
-    await message.answer(
-        f"📁 **{message.text}** bo'limi uchun ichki kategoriyani tanlang:",
-        reply_markup=get_category_keyboard("sub", message.text)
-    )
-    await state.set_state(ContentManagementState.waiting_sub_category)
+    
+    # FAQAT HOLLYWOOD BO'LIMI UCHUN ICHKI KATEGORIYA (AKTYOR) SO'RAYMIZ
+    if message.text == "🎭 Hollywood Kinolari":
+        await message.answer(
+            f"📁 **{message.text}** bo'limi uchun ichki kategoriyani tanlang:",
+            reply_markup=get_category_keyboard("sub", message.text)
+        )
+        await state.set_state(ContentManagementState.waiting_sub_category)
+    else:
+        # BOSHQA BO'LIMLAR UCHUN ICHKI KATEGORIYANI O'TKAZIB YUBORAMIZ
+        await state.update_data(
+            sub_category=message.text,  # Asosiy kategoriyani ichki kategoriya sifatida saqlaymiz
+            actor=""  # Aktyor nomi bo'sh
+        )
+        
+        await message.answer(
+            "💵 Kino narxini kiriting (so'mda):\n0 - Bepul\n30000 - Yuklab olish uchun",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        await state.set_state(ContentManagementState.waiting_movie_price)
 
 # -*-*- ICHKI KATEGORIYA TANLASH -*-*-
-@dp.message(ContentManagementState.waiting_sub_category)
-async def process_sub_category(message: types.Message, state: FSMContext):
-    print(f"DEBUG: Ichki kategoriya tanlandi: '{message.text}'")
-    
-    if message.text == "🔙 Orqaga":
-        await message.answer("Asosiy kategoriyani tanlang:", reply_markup=get_category_keyboard("main"))
-        await state.set_state(ContentManagementState.waiting_main_category)
+@dp.message(ContentManagementState.waiting_main_category)
+async def process_main_category(message: types.Message, state: FSMContext):
+    if message.text == "🔙 Asosiy Menyu":
+        await message.answer("Amalni tanlang:", reply_markup=content_management_keyboard())
+        await state.clear()
         return
         
-    # ICHKI KATEGORIYA = AKTYOR NOMI
-    await state.update_data(sub_category=message.text, actor=message.text)
+    # ASOSIY KATEGORIYANI SAQLAYMIZ VA ICHKI KATEGORIYANI O'TKAZIB YUBORAMIZ
+    await state.update_data(
+        main_category=message.text, 
+        sub_category=message.text,  # Asosiy kategoriyani ichki kategoriya sifatida saqlaymiz
+        actor=""  # Aktyor nomi bo'sh
+    )
     
+    # ICHKI KATEGORIYANI SO'RAMAYMIZ, TO'GRIDAN-TO'G'RI NARX SO'RAYMIZ
     await message.answer(
         "💵 Kino narxini kiriting (so'mda):\n0 - Bepul\n30000 - Yuklab olish uchun",
-        reply_markup=ReplyKeyboardRemove()  # Klaviaturani olib tashlaymiz
+        reply_markup=ReplyKeyboardRemove()
     )
     await state.set_state(ContentManagementState.waiting_movie_price)
     
