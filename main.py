@@ -3595,8 +3595,37 @@ async def handle_other_messages(message: types.Message):
 
 async def main():
     print("Bot ishga tushdi...")
+    
+    # Start auto-restart in background
+    asyncio.create_task(auto_restart())
+    
     keep_alive()
-    await dp.start_polling(bot)
+    
+    # Webhook sozlamalari (Render uchun)
+    if os.getenv('RENDER'):
+        # Webhook mode - Render uchun
+        WEBHOOK_PATH = f"/webhook/{BOT_TOKEN}"
+        WEBHOOK_URL = f"https://kino-bot-l3nw.onrender.com{WEBHOOK_PATH}"
+        
+        # Set webhook
+        await bot.set_webhook(WEBHOOK_URL)
+        
+        # Webhook server
+        from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+        from aiohttp import web
+        
+        app = web.Application()
+        webhook_requests_handler = SimpleRequestHandler(
+            dispatcher=dp,
+            bot=bot,
+        )
+        webhook_requests_handler.register(app, path=WEBHOOK_PATH)
+        setup_application(app, dp, bot=bot)
+        
+        await web._run_app(app, host="0.0.0.0", port=8080)
+    else:
+        # Polling mode - local uchun
+        await dp.start_polling(bot)
     
 # -*-*- BAZA YARATISH -*-*-
 @dp.startup()
