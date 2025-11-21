@@ -1,19 +1,11 @@
 import os
-import time
 import asyncio
-from datetime import datetime
-from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import CommandStart
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.fsm.context import FSMContext
+from aiogram import Bot, Dispatcher
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
 from dotenv import load_dotenv
 
 from database import Database
-from admin import AdminManager, AdvertisementState
-from admin import DeleteContentState
 
 load_dotenv()
 
@@ -26,10 +18,9 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 # ==============================================================================
-# -*-*- DATABASE VA ADMIN MANAGER -*-*-
+# -*-*- DATABASE -*-*-
 # ==============================================================================
 db = Database()
-admin_manager = AdminManager(db)
 
 print(f"🔄 Bot ishga tushmoqda...")
 print(f"🔑 Admin ID: {ADMIN_ID}")
@@ -42,7 +33,7 @@ print(f"🤖 Bot token: {BOT_TOKEN[:10]}...")
 async def main():
     print("Bot ishga tushdi...")
     
-    # Faqat Webhook rejimi (Render uchun)
+    # Webhook rejimi (Render uchun)
     print("🌐 Webhook rejimi ishga tushmoqda...")
     
     # Webhook ni o'chirish (avvalgi webhook ni tozalash)
@@ -75,6 +66,8 @@ async def on_startup():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+# ... (qolgan handlerlar va holatlar o'zgarmaydi)
 
 # ==============================================================================
 # -*-*- RO'YXATDAN O'TISH HOLATLARI -*-*-
