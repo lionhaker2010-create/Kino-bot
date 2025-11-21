@@ -16,6 +16,12 @@ from keep_alive import keep_alive
 load_dotenv()
 
 # ==============================================================================
+# -*-*- GLOBAL O'ZGARUVCHILAR -*-*-
+# ==============================================================================
+last_movie_processing_time = 0
+last_payment_processing_time = 0
+
+# ==============================================================================
 # -*-*- BOT KONFIGURATSIYASI -*-*-
 # ==============================================================================
 BOT_TOKEN = os.getenv('BOT_TOKEN')
@@ -1413,7 +1419,11 @@ async def process_movie_file(message: types.Message, state: FSMContext):
         return
     last_movie_processing_time = current_time
     
+    print(f"🎬 DEBUG: Video qabul qilindi - {message.video.file_id}")
+    
     data = await state.get_data()
+    print(f"🎬 DEBUG: State data: {data}")
+    
     if not data:
         await message.answer("❌ Ma'lumotlar topilmadi.", reply_markup=admin_advanced_keyboard())
         return
@@ -1427,6 +1437,8 @@ async def process_movie_file(message: types.Message, state: FSMContext):
     
     full_category = f"{data['main_category']} - {data['sub_category']}"
     
+    print(f"🎬 DEBUG: Kino qo'shilmoqda - {data['title']}, {full_category}")
+    
     # Kino qo'shish (banner bilan)
     movie_id = db.add_movie(
         title=data['title'],
@@ -1437,8 +1449,10 @@ async def process_movie_file(message: types.Message, state: FSMContext):
         is_premium=(data['price'] > 0),
         added_by=message.from_user.id,
         actor_name=data['actor'],
-        banner_file_id=data['banner_file_id']  # <- BANNER QO'SHILDI
+        banner_file_id=data['banner_file_id']
     )
+    
+    print(f"🎬 DEBUG: Kino qo'shildi - ID: {movie_id}")
     
     await state.clear()
     
