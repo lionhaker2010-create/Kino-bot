@@ -3853,16 +3853,31 @@ async def handle_other_messages(message: types.Message):
 # ==============================================================================
 
 async def main():
+    print("Bot ishga tushdi...")
+    
+    # Webhook ni o'chirish (local uchun)
+    if not os.getenv('RENDER'):
+        try:
+            await bot.delete_webhook(drop_pending_updates=True)
+            print("✅ Webhook o'chirildi - polling rejimi")
+        except Exception as e:
+            print(f"⚠️ Webhook o'chirishda xatolik: {e}")
+    
+    # Start auto-restart in background
+    asyncio.create_task(auto_restart())
+    
+    keep_alive()
+    
     # Webhook sozlamalari (Render uchun)
     if os.getenv('RENDER'):
-        # Webhook mode - Render uchun
+        print("🌐 Webhook rejimi ishga tushmoqda...")
+        
         WEBHOOK_PATH = f"/webhook"
         WEBHOOK_URL = f"https://kino-bot-l3nw.onrender.com{WEBHOOK_PATH}"
         
-        # Set webhook
         await bot.set_webhook(WEBHOOK_URL)
+        print(f"✅ Webhook sozlandi: {WEBHOOK_URL}")
         
-        # Webhook server
         app = web.Application()
         webhook_requests_handler = SimpleRequestHandler(
             dispatcher=dp,
@@ -3871,18 +3886,20 @@ async def main():
         webhook_requests_handler.register(app, path=WEBHOOK_PATH)
         setup_application(app, dp, bot=bot)
         
-        # Portni environment'dan olish
         port = int(os.environ.get("PORT", 8080))
-        await web._run_app(app, host="0.0.0.0", port=port)
+        print(f"🚀 Server {port}-portda ishga tushmoqda...")
+        
+        return await web._run_app(app, host="0.0.0.0", port=port)
     else:
         # Polling mode - local uchun
+        print("📡 Polling rejimi ishga tushmoqda...")
         await dp.start_polling(bot)
     
 # -*-*- BAZA YARATISH -*-*-
 @dp.startup()
 async def on_startup():
     db.init_db()  # Barcha jadvallarni yaratadi
-    print("Barcha jadvallar yaratildi/yangilandi")    
+    print("✅ Barcha jadvallar yaratildi/yangilandi")    
 
 if __name__ == "__main__":
     asyncio.run(main())
