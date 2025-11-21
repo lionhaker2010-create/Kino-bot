@@ -212,13 +212,18 @@ class Database:
     def add_movie(self, title, description, category, file_id, price, is_premium, added_by, actor_name=None, banner_file_id=None):
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
+            print(f"🛠️ DATABASE DEBUG: add_movie - {title}, {category}, price: {price}")
+            
             cursor.execute('''
                 INSERT INTO movies (title, description, category, file_id, price, is_premium, added_by, actor_name, banner_file_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (title, description, category, file_id, price, is_premium, added_by, actor_name, banner_file_id))
             conn.commit()
-            return cursor.lastrowid
-
+            
+            movie_id = cursor.lastrowid
+            print(f"🛠️ DATABASE DEBUG: Movie added with ID: {movie_id}")
+            return movie_id
+            
     # -*-*- KINOLARNI OLISH -*-*-
     def get_movies_by_category(self, category):
         """Kategoriya bo'yicha kinolarni olish (banner bilan)"""
