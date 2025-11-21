@@ -1,6 +1,8 @@
 import os
 import asyncio
-from aiogram import Bot, Dispatcher
+from aiogram import Bot, Dispatcher, types, F
+from aiogram.filters import CommandStart
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
 from dotenv import load_dotenv
@@ -25,6 +27,44 @@ db = Database()
 print(f"🔄 Bot ishga tushmoqda...")
 print(f"🔑 Admin ID: {ADMIN_ID}")
 print(f"🤖 Bot token: {BOT_TOKEN[:10]}...")
+
+# ==============================================================================
+# -*-*- HANDLERLAR -*-*-
+# ==============================================================================
+
+@dp.message(CommandStart())
+async def start_command(message: types.Message):
+    await message.answer(
+        "🤗 Assalomu Aleykum! Dunyo Kinosi Olamiga xush kelibsiz! 🎬\n"
+        "Bu Bot Siz izlagan barcha Kontentlarni o'z ichiga olgan. 🔍\n"
+        "Sevimli Kino va Seriallaringizni tomosha qiling!",
+        reply_markup=main_menu_keyboard()
+    )
+
+def main_menu_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🎬 Barcha Kontentlar"), KeyboardButton(text="📁 Bo'limlar")],
+            [KeyboardButton(text="💵 Pullik Hizmatlar"), KeyboardButton(text="🔍 Qidiruv")],
+        ],
+        resize_keyboard=True
+    )
+
+@dp.message(F.text == "🎬 Barcha Kontentlar")
+async def all_content(message: types.Message):
+    await message.answer("🎬 Barcha Kontentlar bo'limi. Tez orada...")
+
+@dp.message(F.text == "📁 Bo'limlar")
+async def sections(message: types.Message):
+    await message.answer("📁 Bo'limlar. Tez orada...")
+
+@dp.message(F.text == "💵 Pullik Hizmatlar")
+async def premium_services(message: types.Message):
+    await message.answer("💵 Pullik Hizmatlar. Tez orada...")
+
+@dp.message(F.text == "🔍 Qidiruv")
+async def search_handler(message: types.Message):
+    await message.answer("🔍 Qidiruv. Tez orada...")
 
 # ==============================================================================
 # -*-*- ASOSIY FUNKSIYA -*-*-
