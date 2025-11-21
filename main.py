@@ -131,6 +131,234 @@ class PaymentState(StatesGroup):
 # ==============================================================================
 # -*-*- YAGONA BO'LIM KLAVIATURASI -*-*-
 # ==============================================================================
+import os
+import time
+import asyncio
+from aiogram import Bot, Dispatcher, types, F
+from aiogram.filters import CommandStart
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.context import FSMContext
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiohttp import web
+from dotenv import load_dotenv
+
+from database import Database
+from admin import AdminManager, AdvertisementState
+from admin import DeleteContentState
+from keep_alive import keep_alive
+
+load_dotenv()
+
+# ==============================================================================
+# -*-*- GLOBAL O'ZGARUVCHILAR -*-*-
+# ==============================================================================
+last_movie_processing_time = 0
+last_payment_processing_time = 0
+
+# ==============================================================================
+# -*-*- BOT KONFIGURATSIYASI -*-*-
+# ==============================================================================
+BOT_TOKEN = os.getenv('BOT_TOKEN')
+ADMIN_ID = int(os.getenv('ADMIN_ID'))
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher()
+
+# ==============================================================================
+# -*-*- DATABASE VA ADMIN MANAGER -*-*-
+# ==============================================================================
+db = Database()
+admin_manager = AdminManager(db)
+
+async def auto_restart():
+    """Auto restart every 6 hours to prevent freezing"""
+    while True:
+        await asyncio.sleep(6 * 60 * 60)  # 6 hours
+        print(f"🔄 Auto-restart at {time.strftime('%Y-%m-%d %H:%M:%S')}")
+
+print(f"🔄 Bot ishga tushmoqda...")
+print(f"🔑 Admin ID: {ADMIN_ID}")
+print(f"🤖 Bot token: {BOT_TOKEN[:10]}...")
+
+# ==============================================================================
+# -*-*- ASOSIY FUNKSIYA -*-*-
+# ==============================================================================
+
+async def main():
+    print("Bot ishga tushdi...")
+    
+    # Start auto-restart in background
+    asyncio.create_task(auto_restart())
+    
+    keep_alive()
+    
+    # Webhook sozlamalari (Render uchun)
+    if os.getenv('RENDER'):
+        print("🌐 Webhook rejimi ishga tushmoqda...")
+        
+        # Webhook mode - Render uchun
+        WEBHOOK_PATH = f"/webhook"
+        WEBHOOK_URL = f"https://kino-bot-l3nw.onrender.com{WEBHOOK_PATH}"
+        
+        # Set webhook
+        await bot.set_webhook(WEBHOOK_URL)
+        print(f"✅ Webhook sozlandi: {WEBHOOK_URL}")
+        
+        # Webhook server
+        app = web.Application()
+        webhook_requests_handler = SimpleRequestHandler(
+            dispatcher=dp,
+            bot=bot,
+        )
+        webhook_requests_handler.register(app, path=WEBHOOK_PATH)
+        setup_application(app, dp, bot=bot)
+        
+        # Portni environment'dan olish
+        port = int(os.environ.get("PORT", 8080))
+        print(f"🚀 Server {port}-portda ishga tushmoqda...")
+        
+        return await web._run_app(app, host="0.0.0.0", port=port)
+    else:
+        # Polling mode - local uchun
+        print("📡 Polling rejimi ishga tushmoqda...")
+        await dp.start_polling(bot)
+
+# -*-*- BAZA YARATISH -*-*-
+@dp.startup()
+async def on_startup():
+    db.init_db()  # Barcha jadvallarni yaratadi
+    print("✅ Barcha jadvallar yaratildi/yangilandi")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
+# ==============================================================================
+# -*-*- RO'YXATDAN O'TISH HOLATLARI -*-*-
+# ==============================================================================
+class Registration(StatesGroup):
+    language = State()
+    name = State()
+    phone = State()
+
+# ==============================================================================
+# -*-*- QIDIRUV HOLATI -*-*-
+# ==============================================================================
+class SearchState(StatesGroup):
+    waiting_search_query = State()
+
+# ==============================================================================
+# -*-*- KLAVIATURALAR -*-*-
+# ==============================================================================
+
+# ==============================================================================
+# -*-*- PREMIUM BOSHQARUV HOLATLARI -*-*-
+# ==============================================================================
+class PremiumManagementState(StatesGroup):
+    waiting_user_id = State()
+    waiting_action = State()
+    waiting_duration = State()
+    waiting_confirmation = State()
+    
+# ==============================================================================
+# -*-*- KONTENT BOSHQARUV HOLATLARI -*-*-
+# ==============================================================================
+class ContentManagementState(StatesGroup):
+    waiting_content_type = State()
+    waiting_movie_title = State()
+    waiting_movie_description = State()
+    waiting_main_category = State()
+    waiting_sub_category = State()
+    waiting_movie_price = State()  
+    waiting_movie_banner = State()  # <- YANGI: banner rasm
+    waiting_movie_file = State()
+    
+# ==============================================================================
+# -*-*- BLOKLASH HOLATLARI -*-*-
+# ==============================================================================
+class BlockUserState(StatesGroup):
+    waiting_user_id = State()
+    waiting_reason = State()
+    waiting_duration = State()
+    waiting_confirmation = State()
+
+class UnblockUserState(StatesGroup):
+    waiting_user_id = State()   
+
+# ==============================================================================
+# -*-*- TO'LOV HOLATLARI -*-*-
+# ==============================================================================
+class PaymentState(StatesGroup):
+    waiting_payment_method = State()
+    waiting_payment_confirmation = State()
+    waiting_payment_receipt = State()    
+
+# ... (qolgan kodlar o'zgarmaydi, faqat yuqoridagi qismlar yangilandi)
+
+# ==============================================================================
+# -*-*- START VA RO'YXATDAN O'TISH HANDLERLARI -*-*-
+# ==============================================================================
+
+@dp.message(CommandStart())
+async def start_command(message: types.Message, state: FSMContext):
+    # Bloklanganligini tekshirish
+    if db.is_user_blocked(message.from_user.id):
+        block_info = db.get_blocked_user_info(message.from_user.id)
+        if block_info:
+            reason, duration, until, blocked_at, blocked_by = block_info
+            
+            # Muddatni o'qiladigan formatga o'tkazish
+            duration_display = {
+                "24_soat": "24 soat",
+                "7_kun": "7 kun", 
+                "Noma'lum": "Noma'lum muddat"
+            }.get(duration, duration)
+            
+            block_message = (
+                f"🚫 **KIRISH TA'QICHLANGAN!**\n\n"
+                f"Hurmatli foydalanuvchi, platforma qoidalariga amal qilinmaganligi "
+                f"sababli hisobingiz faoliyati vaqtincha bloklandi.\n\n"
+                f"📋 **Sabab:** {reason}\n"
+                f"⏰ **Muddati:** {duration_display}\n\n"
+                f"⚠️ **Ogohlantirishlar:**\n"
+                f"• Blokni chetlab o'tishga urinish — muddatni uzaytiradi\n"
+                f"• Administrator bilan hurmat bilan muloqot qiling\n"
+                f"• Yolg'on ma'lumot taqdim qilinishi blokni bekor qilmaydi\n\n"
+                f"Agar bu qaror bo'yicha e'tirozingiz bo'lsa, quyidagi manzil orqali administratorga yozing:\n\n"
+                f"📞 **Administrator:** @Operator_1985\n"
+                f"📝 Arizangiz ko'rib chiqiladi."
+            )
+            await message.answer(block_message)
+            return
+    
+    user = db.get_user(message.from_user.id)
+    
+    if user:
+        await message.answer(
+            "🤗 Assalomu Aleykum! Dunyo Kinosi Olamiga xush kelibsiz! 🎬\n"
+            "Bu Bot Siz izlagan barcha Kontentlarni o'z ichiga olgan. 🔍\n"
+            "Sevimli Kino va Seriallaringizni va Multfilmlarni\n"
+            "Musiqa Konsert Dasturlarini To'liq Nomi Yozib\n"
+            "Qidiruv Bo'limi Orqali topshingiz ham mumkin!",
+            reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
+        )
+    else:
+        await message.answer(
+            "🤗 Assalomu Aleykum Dunyo Kinosi Olamiga xush kelibsiz! 🎬\n"
+            "Bu Bot Siz izlagan barcha Kontentlarni o'z ichiga olgan. 🔍\n"
+            "Sevimli Kino va Seriallaringizni va Multfilmlarni\n"
+            "Musiqa Konsert Dasturlarini To'liq Nomi Yozib\n"
+            "Qidiruv Bo'limi Orqali topshingiz ham mumkin!\n\n"
+            "👇 Kerakli Tilni Tanlang",
+            reply_markup=language_keyboard()
+        )
+        await state.set_state(Registration.language)
+
+# ... (qolgan barcha handlerlar va funksiyalar o'zgarmaydi)
+
+# ==============================================================================
+# -*-*- KLAVIATURA FUNKSIYALARI -*-*-
+# ==============================================================================
+
 def get_category_keyboard(category_type, category_name=None):
     """Barcha bo'limlar uchun yagona klaviatura"""
     db = Database()  # Database obyektini yaratish
@@ -162,6 +390,37 @@ def get_category_keyboard(category_type, category_name=None):
             ],
             resize_keyboard=True
         )
+
+def main_menu_keyboard(user_id=None, username=None):
+    keyboard = [
+        [KeyboardButton(text="🎬 Barcha Kontentlar"), KeyboardButton(text="📁 Bo'limlar")],
+        [KeyboardButton(text="💵 Pullik Hizmatlar"), KeyboardButton(text="🔍 Qidiruv")],
+    ]
+    
+    # Premium taklif tugmasi
+    if user_id and not db.check_premium_status(user_id):
+        keyboard.append([KeyboardButton(text="💎 Premiumga O'tish"), KeyboardButton(text="🎁 Aksiya")])
+    
+    # Admin panel
+    if user_id and admin_manager.is_admin(user_id, username):
+        keyboard.append([KeyboardButton(text="👑 Admin Panel")])
+    
+    return ReplyKeyboardMarkup(
+        keyboard=keyboard,
+        resize_keyboard=True
+    )
+
+def language_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🇺🇿 O'zbek"), KeyboardButton(text="🇷🇺 Русский"), KeyboardButton(text="🏴 English")],
+        ],
+        resize_keyboard=True
+    )
+
+
+
+# ... (qolgan barcha klaviatura funksiyalari o'zgarmaydi)
     
 # ==============================================================================
 # -*-*- ASOSIY KATEGORIYALAR KLAVIATURASI -*-*-
@@ -1786,7 +2045,6 @@ async def start_command(message: types.Message, state: FSMContext):
             return
     
     user = db.get_user(message.from_user.id)
-    # ... qolgan kod
     
     if user:
         await message.answer(
@@ -1808,6 +2066,7 @@ async def start_command(message: types.Message, state: FSMContext):
             reply_markup=language_keyboard()
         )
         await state.set_state(Registration.language)
+
 
 @dp.message(Registration.language)
 async def process_language(message: types.Message, state: FSMContext):
@@ -3594,26 +3853,16 @@ async def handle_other_messages(message: types.Message):
 # ==============================================================================
 
 async def main():
-    print("Bot ishga tushdi...")
-    
-    # Start auto-restart in background
-    asyncio.create_task(auto_restart())
-    
-    keep_alive()
-    
     # Webhook sozlamalari (Render uchun)
     if os.getenv('RENDER'):
         # Webhook mode - Render uchun
-        WEBHOOK_PATH = f"/webhook/{BOT_TOKEN}"
+        WEBHOOK_PATH = f"/webhook"
         WEBHOOK_URL = f"https://kino-bot-l3nw.onrender.com{WEBHOOK_PATH}"
         
         # Set webhook
         await bot.set_webhook(WEBHOOK_URL)
         
         # Webhook server
-        from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
-        from aiohttp import web
-        
         app = web.Application()
         webhook_requests_handler = SimpleRequestHandler(
             dispatcher=dp,
@@ -3622,7 +3871,9 @@ async def main():
         webhook_requests_handler.register(app, path=WEBHOOK_PATH)
         setup_application(app, dp, bot=bot)
         
-        await web._run_app(app, host="0.0.0.0", port=8080)
+        # Portni environment'dan olish
+        port = int(os.environ.get("PORT", 8080))
+        await web._run_app(app, host="0.0.0.0", port=port)
     else:
         # Polling mode - local uchun
         await dp.start_polling(bot)
