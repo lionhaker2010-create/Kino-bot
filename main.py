@@ -1,25 +1,21 @@
 import os
 import time
 import asyncio
+from datetime import datetime
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiohttp import web
 from dotenv import load_dotenv
 
 from database import Database
 from admin import AdminManager, AdvertisementState
 from admin import DeleteContentState
-from keep_alive import keep_alive
 
 load_dotenv()
-
-# ==============================================================================
-# -*-*- GLOBAL O'ZGARUVCHILAR -*-*-
-# ==============================================================================
-last_movie_processing_time = 0
-last_payment_processing_time = 0
 
 # ==============================================================================
 # -*-*- BOT KONFIGURATSIYASI -*-*-
@@ -35,13 +31,6 @@ dp = Dispatcher()
 db = Database()
 admin_manager = AdminManager(db)
 
-async def auto_restart():
-    """Auto restart every 6 hours to prevent freezing"""
-    while True:
-        await asyncio.sleep(6 * 60 * 60)  # 6 hours
-        print(f"🔄 Auto-restart at {datetime.now()}")
-        # Bot will automatically restart when using Render
-
 print(f"🔄 Bot ishga tushmoqda...")
 print(f"🔑 Admin ID: {ADMIN_ID}")
 print(f"🤖 Bot token: {BOT_TOKEN[:10]}...")
@@ -53,17 +42,36 @@ print(f"🤖 Bot token: {BOT_TOKEN[:10]}...")
 async def main():
     print("Bot ishga tushdi...")
     
-    # Start auto-restart in background
-    asyncio.create_task(auto_restart())
+    # Faqat Webhook rejimi (Render uchun)
+    print("🌐 Webhook rejimi ishga tushmoqda...")
     
-    keep_alive()
-    await dp.start_polling(bot)
+    # Webhook ni o'chirish (avvalgi webhook ni tozalash)
+    await bot.delete_webhook(drop_pending_updates=True)
+    
+    WEBHOOK_PATH = f"/webhook"
+    WEBHOOK_URL = f"https://kino-bot-l3nw.onrender.com{WEBHOOK_PATH}"
+    
+    await bot.set_webhook(WEBHOOK_URL)
+    print(f"✅ Webhook sozlandi: {WEBHOOK_URL}")
+    
+    app = web.Application()
+    webhook_requests_handler = SimpleRequestHandler(
+        dispatcher=dp,
+        bot=bot,
+    )
+    webhook_requests_handler.register(app, path=WEBHOOK_PATH)
+    setup_application(app, dp, bot=bot)
+    
+    port = int(os.environ.get("PORT", 8080))
+    print(f"🚀 Server {port}-portda ishga tushmoqda...")
+    
+    return await web._run_app(app, host="0.0.0.0", port=port)
     
 # -*-*- BAZA YARATISH -*-*-
 @dp.startup()
 async def on_startup():
     db.init_db()  # Barcha jadvallarni yaratadi
-    print("Barcha jadvallar yaratildi/yangilandi")    
+    print("✅ Barcha jadvallar yaratildi/yangilandi")    
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -81,10 +89,6 @@ class Registration(StatesGroup):
 # ==============================================================================
 class SearchState(StatesGroup):
     waiting_search_query = State()
-
-# ==============================================================================
-# -*-*- KLAVIATURALAR -*-*-
-# ==============================================================================
 
 # ==============================================================================
 # -*-*- PREMIUM BOSHQARUV HOLATLARI -*-*-
@@ -105,7 +109,7 @@ class ContentManagementState(StatesGroup):
     waiting_main_category = State()
     waiting_sub_category = State()
     waiting_movie_price = State()  
-    waiting_movie_banner = State()  # <- YANGI: banner rasm
+    waiting_movie_banner = State()
     waiting_movie_file = State()
     
 # ==============================================================================
@@ -126,7 +130,9 @@ class UnblockUserState(StatesGroup):
 class PaymentState(StatesGroup):
     waiting_payment_method = State()
     waiting_payment_confirmation = State()
-    waiting_payment_receipt = State()    
+    waiting_payment_receipt = State()
+
+# ... (qolgan barcha handlerlar va funksiyalar o'zgarmasdan qoladi)   
     
 # ==============================================================================
 # -*-*- YAGONA BO'LIM KLAVIATURASI -*-*-
