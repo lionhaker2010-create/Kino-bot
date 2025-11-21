@@ -1,439 +1,826 @@
+# -*-*- MA'LUMOTLAR BAZASI KONFIGURATSIYASI -*-*-
+# -*-*- SQLite bazasi bilan ishlash uchun klass -*-*-
+
 import sqlite3
 import logging
 
-# ==================== DATABASE CLASS ====================
+# ==============================================================================
+# -*-*- ASOSIY DATABASE KLASSI -*-*-
+# ==============================================================================
 class Database:
-    def __init__(self, db_name='kino.db'):
-        self.db_name = db_name
+    def __init__(self, db_path="users.db"):
+        self.db_path = db_path
         self.init_db()
     
-    # ==================== DATABASENI ISHGA TUSHIRISH ====================
+    # ==========================================================================
+    # -*-*- BAZANI YARATISH VA ISHGA TUSHIRISH -*-*-
+    # ==========================================================================
     def init_db(self):
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        
-        # FOYDALANUVCHILAR JADVALI
-        cursor.execute('''
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
                 CREATE TABLE IF NOT EXISTS users (
                     user_id INTEGER PRIMARY KEY,
                     username TEXT,
                     first_name TEXT,
-                    phone TEXT,
+                    phone_number TEXT,
                     language TEXT DEFAULT 'uz',
                     registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            ''')    
+            ''')
+            conn.commit()
+                    
+        # Barcha jadvallarni yaratish
+        self.init_premium_tables()
+        self.init_content_tables()
+        self.init_user_purchases_table()
+        self.init_blocked_users_table()  # <- YANGI QATOR
         
-        # KONTENT JADVALI
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS content (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT NOT NULL,
-                description TEXT,
-                category TEXT NOT NULL,
-                file_id TEXT,
-                file_type TEXT,
-                added_by INTEGER,
-                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # ==================== TO'LOVLAR JADVALI ====================
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS payments (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                content_type TEXT NOT NULL,  -- 'movie', 'series', 'cartoon'
-                content_name TEXT NOT NULL,
-                amount INTEGER NOT NULL,
-                status TEXT DEFAULT 'pending',  -- 'pending', 'confirmed', 'rejected'
-                receipt_photo TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                confirmed_at TIMESTAMP,
-                confirmed_by INTEGER
-            )
-        ''')
+    def init_blocked_users_table(self):
+        """Bloklangan foydalanuvchilar jadvali"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS blocked_users (
+                    block_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER UNIQUE,
+                    reason TEXT,
+                    block_duration TEXT,
+                    blocked_until TIMESTAMP,
+                    blocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    blocked_by INTEGER,
+                    is_active BOOLEAN DEFAULT TRUE
+                )
+            ''')
+            conn.commit()    
+                
+    # -*-*- PULLIK HIZMATLAR JADVALLARI -*-*-
+    def init_premium_tables(self):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Premium obuna jadvali
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS premium_subscriptions (
+                    user_id INTEGER PRIMARY KEY,
+                    start_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    end_date TIMESTAMP,
+                    plan_type TEXT DEFAULT 'monthly',
+                    payment_amount INTEGER DEFAULT 130000,
+                    payment_status TEXT DEFAULT 'active',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # Yuklab olishlar jadvali
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS downloads (
+                    download_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    content_id TEXT,
+                    content_name TEXT,
+                    download_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    price_paid INTEGER,
+                    download_type TEXT,
+                    status TEXT DEFAULT 'completed'
+                )
+            ''')
+            
+            # Qo'llab-quvvatlash ticketlari jadvali
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS support_tickets (
+                    ticket_id TEXT PRIMARY KEY,
+                    user_id INTEGER,
+                    user_name TEXT,
+                    issue_text TEXT,
+                    status TEXT DEFAULT 'open',
+                    assigned_to TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    resolved_at TIMESTAMP
+                )
+            ''')
+            
+            # To'lovlar jadvali
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS payments (
+                    payment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    amount INTEGER,
+                    payment_type TEXT,
+                    content_id INTEGER,
+                    content_type TEXT,
+                    status TEXT DEFAULT 'pending',
+                    receipt_file_id TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    completed_at TIMESTAMP
+                )
+            ''')
+            conn.commit()
 
-        # ==================== FOYDALANUVCHI RUXSATLARI JADVALI ====================
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS user_access (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                content_id INTEGER,
-                content_type TEXT,
-                purchased_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                expires_at TIMESTAMP,
-                FOREIGN KEY (content_id) REFERENCES content (id)
-            )
-        ''')
-        
-         # PULLIK KONTENTLAR JADVALI
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS premium_content (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                content_id INTEGER,
-                category TEXT NOT NULL,
-                subject TEXT NOT NULL,
-                title TEXT NOT NULL,
-                price INTEGER NOT NULL,
-                is_premium BOOLEAN DEFAULT TRUE,
-                FOREIGN KEY (content_id) REFERENCES content (id)
-            )
-        ''')
-        
-        conn.commit()
-        conn.close()
-        logging.info("Database initialized")
-        
-        # ==================== KONTENT PULLIKLIGINI TEKSHIRISH ====================
-    def is_premium_content(self, category, subject):
-        """Kontent pullik yoki yo'qligini tekshirish"""
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT * FROM premium_content 
-            WHERE category = ? AND subject = ? AND is_premium = TRUE
-        ''', (category, subject))
-        result = cursor.fetchone()
-        conn.close()
-        return result is not None
+    # -*-*- KONTENT BAZASI -*-*-
+    def init_content_tables(self):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Kinolar jadvali - BANNER USTUNI QO'SHILDI
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS movies (
+                    movie_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    description TEXT,
+                    category TEXT,
+                    file_id TEXT,
+                    price INTEGER DEFAULT 0,
+                    is_premium BOOLEAN DEFAULT FALSE,
+                    actor_name TEXT,
+                    banner_file_id TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    added_by INTEGER
+                )
+            ''')
+            
+            # Seriallar jadvali
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS series (
+                    series_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    description TEXT,
+                    category TEXT,
+                    total_episodes INTEGER,
+                    price INTEGER DEFAULT 0,
+                    is_premium BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    added_by INTEGER
+                )
+            ''')
+            
+            # Serial qismlari jadvali
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS episodes (
+                    episode_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    series_id INTEGER,
+                    episode_number INTEGER,
+                    title TEXT,
+                    file_id TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (series_id) REFERENCES series (series_id)
+                )
+            ''')
+            conn.commit()
+            
+    # ==============================================================================
+    # -*-*- FOYDALANUVCHI SOTIB OLGANLAR JADVALI -*-*-
+    # ==============================================================================
+    def init_user_purchases_table(self):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS user_purchases (
+                    purchase_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    movie_id INTEGER,
+                    purchase_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (movie_id) REFERENCES movies (movie_id)
+                )
+            ''')
+            conn.commit()       
 
-    # ==================== PULLIK KONTENT QO'SHISH ====================
-    def add_premium_content(self, content_id, category, subject, title, price):
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT OR REPLACE INTO premium_content 
-            (content_id, category, subject, title, price, is_premium)
-            VALUES (?, ?, ?, ?, ?, TRUE)
-        ''', (content_id, category, subject, title, price))
-        conn.commit()
-        conn.close()
-        return True
-        
-    # ==================== PULLIK KONTENTLARNI OLISH ====================
-    def get_premium_content_by_category(self, category, subject):
-        """Kategoriya bo'yicha pullik kontentlarni olish"""
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT c.*, pc.price 
-            FROM content c 
-            JOIN premium_content pc ON c.id = pc.content_id 
-            WHERE c.category = ? AND pc.is_premium = TRUE
-            ORDER BY c.added_at DESC
-        ''', (f"{category}_{subject}",))
-        contents = cursor.fetchall()
-        conn.close()
-        return contents
+            
+            
+    # ==============================================================================
+    # -*-*- JADVALNI YANGILASH -*-*-
+    # ==============================================================================
+    def update_movies_table(self):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute('ALTER TABLE movies ADD COLUMN actor_name TEXT')
+                print("✅ actor_name ustuni qo'shildi")
+            except sqlite3.OperationalError:
+                print("✅ actor_name ustuni allaqachon mavjud")
+            
+            # BANNER USTUNI QO'SHISH
+            try:
+                cursor.execute('ALTER TABLE movies ADD COLUMN banner_file_id TEXT')
+                print("✅ banner_file_id ustuni qo'shildi")
+            except sqlite3.OperationalError:
+                print("✅ banner_file_id ustuni allaqachon mavjud")        
 
-    def get_last_content_id(self):
-        """Oxirgi qo'shilgan kontent ID sini olish"""
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute('SELECT id FROM content ORDER BY id DESC LIMIT 1')
-        result = cursor.fetchone()
-        conn.close()
-        return result[0] if result else None
+    # ==============================================================================
+    # -*-*- KINO QO'SHISH AKTYOR BILAN -*-*-
+    # ==============================================================================
+    def add_movie(self, title, description, category, file_id, price, is_premium, added_by, actor_name=None, banner_file_id=None):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO movies (title, description, category, file_id, price, is_premium, added_by, actor_name, banner_file_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (title, description, category, file_id, price, is_premium, added_by, actor_name, banner_file_id))
+            conn.commit()
+            return cursor.lastrowid
 
-    def get_premium_content_by_name(self, content_name):
-        """Nomi bo'yicha pullik kontentni olish"""
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT c.*, pc.price 
-            FROM content c 
-            JOIN premium_content pc ON c.id = pc.content_id 
-            WHERE c.title = ? AND pc.is_premium = TRUE
-        ''', (content_name,))
-        content = cursor.fetchone()
-        conn.close()
-        return content    
+    # -*-*- KINOLARNI OLISH -*-*-
+    def get_movies_by_category(self, category):
+        """Kategoriya bo'yicha kinolarni olish (banner bilan)"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT movie_id, title, description, category, file_id, price, 
+                       is_premium, actor_name, banner_file_id, created_at, added_by 
+                FROM movies 
+                WHERE category LIKE ? 
+                ORDER BY created_at DESC
+            ''', (f'{category}%',))
+            return cursor.fetchall()
 
-    # ==================== FOYDALANUVCHINING RUXSATLARINI TEKSHIRISH ====================
-    def check_user_access(self, user_id, category, subject):
-        """Foydalanuvchi kontentga ruxsatiga ega yoki yo'qligini tekshirish"""
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        
-        # 1. To'lovlarni tekshirish
-        cursor.execute('''
-            SELECT * FROM payments 
-            WHERE user_id = ? AND content_name LIKE ? AND status = 'confirmed'
-        ''', (user_id, f'%{subject}%'))
-        payment = cursor.fetchone()
-        
-        # 2. User access jadvalidan tekshirish
-        cursor.execute('''
-            SELECT * FROM user_access 
-            WHERE user_id = ? AND content_type = ?
-        ''', (user_id, f"{category}_{subject}"))
-        access = cursor.fetchone()
-        
-        conn.close()
-        return payment is not None or access is not None
-        
-    # ==================== TO'LOVLARNI OLISH ====================
-    def get_pending_payments(self):
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM payments WHERE status = "pending" ORDER BY created_at DESC')
-        payments = cursor.fetchall()
-        conn.close()
-        return payments
+    # -*-*- KINO OLISH -*-*-
+    def get_movie(self, movie_id):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM movies WHERE movie_id = ?', (movie_id,))
+            return cursor.fetchone()        
 
-    def get_payment_by_id(self, payment_id):
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM payments WHERE id = ?', (payment_id,))
-        payment = cursor.fetchone()
-        conn.close()
-        return payment
+    # -*-*- PREMIUM OBUNA FUNKSIYALARI -*-*-
+    def add_premium_subscription(self, user_id, duration_days=30, amount=130000):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            from datetime import datetime, timedelta
+            start_date = datetime.now()
+            end_date = start_date + timedelta(days=duration_days)
+            
+            cursor.execute('''
+                INSERT OR REPLACE INTO premium_subscriptions 
+                (user_id, start_date, end_date, payment_amount) 
+                VALUES (?, ?, ?, ?)
+            ''', (user_id, start_date, end_date, amount))
+            conn.commit()
 
-    def confirm_payment(self, payment_id, admin_id):
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute('''
-            UPDATE payments 
-            SET status = "confirmed", confirmed_at = CURRENT_TIMESTAMP, confirmed_by = ?
-            WHERE id = ?
-        ''', (admin_id, payment_id))
-        conn.commit()
-        conn.close()
-        return True
+    def check_premium_status(self, user_id):
+        """Foydalanuvchi premium obunasi borligini tekshirish"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT end_date FROM premium_subscriptions 
+                WHERE user_id = ? AND payment_status = 'active'
+            ''', (user_id,))
+            result = cursor.fetchone()
+            if result:
+                from datetime import datetime
+                is_active = datetime.now() < datetime.fromisoformat(result[0])
+                print(f"🛠️ DATABASE DEBUG: check_premium_status - User: {user_id}, Active: {is_active}")
+                return is_active
+            print(f"🛠️ DATABASE DEBUG: check_premium_status - User: {user_id}, Active: False")
+            return False     
+            
+    # -*-*- PREMIUM OBUNANI TO'LIQ O'CHIRISH -*-*-
+    def remove_premium_subscription(self, user_id):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM premium_subscriptions WHERE user_id = ?', (user_id,))
+            conn.commit()
 
-    def get_premium_price(self, category, subject):
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute('SELECT price FROM premium_content WHERE category = ? AND subject = ?', (category, subject))
-        result = cursor.fetchone()
-        conn.close()
-        return result[0] if result else 30000    
-       
-    def reject_payment(self, payment_id, admin_id):
-        """To'lovni rad etish"""
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute('''
-            UPDATE payments 
-            SET status = "rejected", confirmed_at = CURRENT_TIMESTAMP, confirmed_by = ?
-            WHERE id = ?
-        ''', (admin_id, payment_id))
-        conn.commit()
-        conn.close()
-        return True    
-        
+    # -*-*- FOYDALANUVCHI MA'LUMOTLARI -*-*-
+    def get_user_info(self, user_id):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM users WHERE user_id = ?', (user_id,))
+            return cursor.fetchone()        
+
+    # -*-*- YUKLAB OLISH FUNKSIYALARI -*-*-
+    def log_download(self, user_id, content_id, content_name, price, download_type):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO downloads 
+                (user_id, content_id, content_name, price_paid, download_type) 
+                VALUES (?, ?, ?, ?, ?)
+            ''', (user_id, content_id, content_name, price, download_type))
+            conn.commit()
+
+    # -*-*- QO'LLAB-QUVVATLASH FUNKSIYALARI -*-*-
+    def create_support_ticket(self, ticket_id, user_id, user_name, issue_text):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO support_tickets 
+                (ticket_id, user_id, user_name, issue_text) 
+                VALUES (?, ?, ?, ?)
+            ''', (ticket_id, user_id, user_name, issue_text))
+            conn.commit()
+
+    # -*-*- STATISTIKA FUNKSIYALARI -*-*-
+    def get_premium_stats(self):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Premium foydalanuvchilar soni
+            cursor.execute('SELECT COUNT(*) FROM premium_subscriptions WHERE payment_status = "active"')
+            premium_users = cursor.fetchone()[0]
+            
+            # Oylik daromad
+            cursor.execute('''
+                SELECT SUM(payment_amount) FROM premium_subscriptions 
+                WHERE strftime('%Y-%m', start_date) = strftime('%Y-%m', 'now')
+            ''')
+            monthly_income = cursor.fetchone()[0] or 0
+            
+            # Yuklab olishlar soni
+            cursor.execute('SELECT COUNT(*) FROM downloads')
+            downloads_count = cursor.fetchone()[0]
+            
+            # Faol ticketlar
+            cursor.execute('SELECT COUNT(*) FROM support_tickets WHERE status = "open"')
+            active_tickets = cursor.fetchone()[0]
+            
+            return {
+                'premium_users': premium_users,
+                'monthly_income': monthly_income,
+                'downloads_count': downloads_count,
+                'active_tickets': active_tickets,
+                'most_downloaded': "Kinolar"
+            }        
     
-    # ==================== FOYDALANUVCHI QO'SHISH ====================
-    def add_user(self, user_id, username, first_name, phone, language='uz'):
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT OR REPLACE INTO users (user_id, username, first_name, phone, language)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (user_id, username, first_name, phone, language))
-        conn.commit()
-        conn.close()
-        return True
+    # ==========================================================================
+    # -*-*- YANGI FOYDALANUVCHI QO'SHISH -*-*-
+    # ==========================================================================
+    def add_user(self, user_id, username, first_name, phone_number, language):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT OR REPLACE INTO users 
+                (user_id, username, first_name, phone_number, language) 
+                VALUES (?, ?, ?, ?, ?)
+            ''', (user_id, username, first_name, phone_number, language))
+            conn.commit()
     
-    # ==================== FOYDALANUVCHINI OLISH ====================
+    # ==========================================================================
+    # -*-*- FOYDALANUVCHI MA'LUMOTLARINI OLISH -*-*-
+    # ==========================================================================
     def get_user(self, user_id):
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM users WHERE user_id = ?', (user_id,))
-        user = cursor.fetchone()
-        conn.close()
-        return user
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM users WHERE user_id = ?', (user_id,))
+            return cursor.fetchone()
     
-    # ==================== BARCHA FOYDALANUVCHILARNI OLISH ====================
+    # ==========================================================================
+    # -*-*- FOYDALANUVCHI TILINI YANGILASH -*-*-
+    # ==========================================================================
+    def update_user_language(self, user_id, language):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('UPDATE users SET language = ? WHERE user_id = ?', (language, user_id))
+            conn.commit()
+            
+    # ==============================================================================
+    # -*-*- FOYDALANUVCHILAR SONINI HISOBLASH -*-*-
+    # ==============================================================================
+    def get_users_count(self):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT COUNT(*) FROM users')
+            return cursor.fetchone()[0]
+
+    # ==============================================================================
+    # -*-*- BARCHA FOYDALANUVCHILAR RO'YXATI -*-*-
+    # ==============================================================================
     def get_all_users(self):
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute('SELECT user_id FROM users')
-        users = cursor.fetchall()
-        conn.close()
-        return [user[0] for user in users]
-    
-    # ==================== KONTENT QO'SHISH ====================
-    def add_content(self, title, description, category, file_id, file_type, added_by):
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO content (title, description, category, file_id, file_type, added_by)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (title, description, category, file_id, file_type, added_by))
-        conn.commit()
-        conn.close()
-        return True
-    
-        # ==================== YANGILANGAN SUBYEKT BO'YICHA KONTENT OLISH ====================
-    def get_content_by_subject(self, category, subject):
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        
-        # Kategoriya va subyektni to'g'ri formatda qidirish
-        search_pattern = f"{category}_{subject}"
-        print(f"DEBUG: Qidirilayotgan pattern: {search_pattern}")  # Debug uchun
-        
-        cursor.execute('SELECT * FROM content WHERE category = ?', (search_pattern,))
-        content = cursor.fetchall()
-        
-        print(f"DEBUG: Topilgan kontentlar: {len(content)} ta")  # Debug uchun
-        for item in content:
-            print(f"DEBUG: Kontent: {item[1]} | {item[3]}")  # Har bir kontentni ko'rsatish
-        
-        conn.close()
-        return content
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT user_id, first_name, username FROM users')
+            return cursor.fetchall()
 
-   # ==================== YANGILANGAN SAHIFALAB KONTENT OLISH ====================
-    def get_content_by_subject_paginated(self, category, subject, page=1, limit=1):  # limit 1 ga o'zgartirildi
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        offset = (page - 1) * limit
-        
-        # Kategoriya va subyektni to'g'ri formatda qidirish
-        search_pattern = f"{category}_{subject}"
-        print(f"DEBUG: Sahifalab qidirish - Pattern: {search_pattern}, Sahifa: {page}, Limit: {limit}")
-        
-        cursor.execute(
-            'SELECT * FROM content WHERE category = ? LIMIT ? OFFSET ?', 
-            (search_pattern, limit, offset)
-        )
-        content = cursor.fetchall()
-        
-        print(f"DEBUG: Sahifada topilgan kontentlar: {len(content)} ta")
-        
-        # JAMI SAHIFALAR SONINI HISOBLASH
-        cursor.execute(
-            'SELECT COUNT(*) FROM content WHERE category = ?', 
-            (search_pattern,)
-        )
-        total_count = cursor.fetchone()[0]
-        total_pages = (total_count + limit - 1) // limit if total_count > 0 else 1
-        
-        print(f"DEBUG: Jami: {total_count} ta, Sahifalar: {total_pages}")
-        
-        conn.close()
-        return content, total_pages, total_count
+    # ==============================================================================
+    # -*-*- KUNLIK RO'YXATDAN O'TGANLAR -*-*-
+    # ==============================================================================
+    def get_today_users(self):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT COUNT(*) FROM users WHERE DATE(registered_at) = DATE("now")')
+            return cursor.fetchone()[0]
+            
+    # -*-*- AVTOMATIK OBUNA TEKSHIRISH -*-*-
+    def get_pending_activations(self):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT user_id, payment_date FROM payments 
+                WHERE status = 'pending' AND payment_type = 'premium'
+            ''')
+            return cursor.fetchall()
 
-    # ==================== BAZANI TEKSHIRISH FUNKSIYASI ====================
-    def debug_content(self):
-        """Barcha kontentlarni ko'rish uchun debug funksiya"""
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        
-        cursor.execute('SELECT * FROM content')
-        all_content = cursor.fetchall()
-        
-        conn.close()
-        return all_content
-    
-    # ==================== QIDIRUV BO'YICHA KONTENT OLISH ====================
-    def search_content(self, query):
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM content WHERE title LIKE ?', (f'%{query}%',))
-        results = cursor.fetchall()
-        conn.close()
-        return results
-    
-    # ==================== BARCHA KONTENTLARNI OLISH ====================
-    def get_all_content(self):
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM content')
-        content = cursor.fetchall()
-        conn.close()
-        return content
-        
-    # ==================== BARCHA KATEGORIYALARNI OLISH ====================
+    # ==============================================================================
+    # -*-*- BARCHA BO'LIMLAR VA ICHKI BO'LIMLAR -*-*-
+    # ==============================================================================
     def get_all_categories(self):
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute('SELECT DISTINCT category FROM content')
-        categories = cursor.fetchall()
-        conn.close()
-        return [category[0] for category in categories]
-
-    # ==================== KATEGORIYA BO'YICHA KONTENT OLISH ====================
-    def get_content_by_category(self, category):
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM content WHERE category = ?', (category,))
-        content = cursor.fetchall()
-        conn.close()
-        return content    
+        """Barcha asosiy va ichki bo'limlarni qaytarish"""
+        return {
+            "main_categories": [
+                "🎭 Hollywood Kinolari", "🎬 Hind Filmlari", "📺 Hind Seriallari",
+                "🎥 Rus Kinolari", "📟 Rus Seriallari", "🎞️ O'zbek Kinolari", 
+                "📱 O'zbek Seriallari", "🕌 Islomiy Kinolar", "📖 Islomiy Seriallar",
+                "🇹🇷 Turk Kinolari", "📺 Turk Seriallari", "👶 Bolalar Kinolari",
+                "🐰 Bolalar Multfilmlari", "🇰🇷 Koreys Kinolari", "📡 Koreys Seriallari",
+                "🎯 Qisqa Filmlar", "🎤 Konsert Dasturlari"
+            ],
+            "sub_categories": {
+                "🎭 Hollywood Kinolari": [
+                    "🎬 Mel Gibson", "💪 Arnold Schwarzenegger", "🥊 Sylvester Stallone",
+                    "🚗 Jason Statham", "🐲 Jeki Chan", "🥋 Skod Adkins",
+                    "🎭 Denzil Washington", "💥 Jan Clod Van Dam", "👊 Brus lee",
+                    "😂 Jim Cerry", "🏴‍☠️ Jonni Depp", "🥋 Jet Lee", 
+                    "👊 Mark Dacascos", "🎬 Bred Pitt", "🎭 Leonardo Dicaprio"
+                ],
+                "🎬 Hind Filmlari": [
+                    "🤴 Shakruhkhan", "🎬 Amirkhan", "💪 Akshay Kumar",
+                    "👑 Salmonkhan", "🌟 SayfAlihon", "🎭 Amitahbachchan",
+                    "🔥 MethunChakraborty", "🎥 Dharmendra", "🎞️ Raj Kapur"
+                ]
+            }
+        }
         
-    # ==================== TO'LOV QO'SHISH ====================
-    def add_payment(self, user_id, content_type, content_name, amount, receipt_photo=None):
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO payments (user_id, content_type, content_name, amount, receipt_photo)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (user_id, content_type, content_name, amount, receipt_photo))
-        conn.commit()
-        conn.close()
-        return True
+    # -*-*- FOYDALANUVCHI SOTIB OLGAN KONTENTLAR -*-*-
+    # ==============================================================================
+    # -*-*- FOYDALANUVCHI SOTIB OLGAN KONTENTLAR -*-*-
+    # ==============================================================================
+    def add_user_purchase(self, user_id, movie_id, purchase_date=None):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO user_purchases (user_id, movie_id) 
+                VALUES (?, ?)
+            ''', (user_id, movie_id))
+            conn.commit()
 
-    # ==================== TO'LOVLARNI OLISH ====================
+    def check_user_purchase(self, user_id, movie_id):
+        """Foydalanuvchi kino sotib olganini tekshirish"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT * FROM user_purchases 
+                WHERE user_id = ? AND movie_id = ?
+            ''', (user_id, movie_id))
+            result = cursor.fetchone() is not None
+            print(f"🛠️ DATABASE DEBUG: check_user_purchase - User: {user_id}, Movie: {movie_id}, Result: {result}")
+            return result
+
+    def get_user_purchases(self, user_id):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT m.* FROM movies m
+                JOIN user_purchases up ON m.movie_id = up.movie_id
+                WHERE up.user_id = ?
+            ''', (user_id,))
+            return cursor.fetchall()    
+            
+    # -*-*- TO'LOV MA'LUMOTLARI -*-*-
+    def add_payment(self, user_id, amount, content_id, content_type, receipt_file_id=None):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Jadval mavjudligiga ishonch hosil qilish
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS payments (
+                    payment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    amount INTEGER,
+                    payment_type TEXT,
+                    content_id INTEGER,
+                    content_type TEXT,
+                    status TEXT DEFAULT 'pending',
+                    receipt_file_id TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    completed_at TIMESTAMP
+                )
+            ''')
+            
+            cursor.execute('''
+                INSERT INTO payments (user_id, amount, payment_type, content_id, content_type, receipt_file_id)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (user_id, amount, "movie_download", content_id, content_type, receipt_file_id))
+            conn.commit()
+            return cursor.lastrowid
+
     def get_pending_payments(self):
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM payments WHERE status = "pending"')
-        payments = cursor.fetchall()
-        conn.close()
-        return payments
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT p.*, u.first_name, m.title 
+                FROM payments p
+                LEFT JOIN users u ON p.user_id = u.user_id
+                LEFT JOIN movies m ON p.content_id = m.movie_id
+                WHERE p.status = 'pending'
+            ''')
+            return cursor.fetchall()
 
-    # ==================== TO'LOVNI TASDIQLASH ====================
-    def confirm_payment(self, payment_id, admin_id):
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute('''
-            UPDATE payments 
-            SET status = "confirmed", confirmed_at = CURRENT_TIMESTAMP, confirmed_by = ?
-            WHERE id = ?
-        ''', (admin_id, payment_id))
-        conn.commit()
-        conn.close()
-        return True
+    def update_payment_status(self, payment_id, status):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE payments SET status = ?, completed_at = CURRENT_TIMESTAMP 
+                WHERE payment_id = ?
+            ''', (status, payment_id))
+            conn.commit()        
+            
+    # ==============================================================================
+    # -*-*- KINO ID BO'YICHA OLISH -*-*-
+    # ==============================================================================
+    def get_movie_by_id(self, movie_id):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM movies WHERE movie_id = ?', (movie_id,))
+            return cursor.fetchone()    
 
-        # ==================== PULLIK KONTENTNI NOMI BO'YICHA OLISH ====================
-    def get_premium_content_by_name(self, content_name):
-        """Nomi bo'yicha pullik kontentni olish"""
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT c.*, pc.price 
-            FROM content c 
-            JOIN premium_content pc ON c.id = pc.content_id 
-            WHERE c.title = ? AND pc.is_premium = TRUE
-        ''', (content_name,))
-        content = cursor.fetchone()
-        conn.close()
-        return content
+    # ==============================================================================
+    # -*-*- BLOKLASH FUNKSIYALARI -*-*-
+    # ==============================================================================
 
-    # ==================== FOYDALANUVCHI RUXSATI QO'SHISH ====================
-    def add_user_access(self, user_id, content_id, content_type):
-        """Foydalanuvchiga kontent ruxsati qo'shish"""
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT OR REPLACE INTO user_access (user_id, content_id, content_type)
-            VALUES (?, ?, ?)
-        ''', (user_id, content_id, content_type))
-        conn.commit()
-        conn.close()
-        return True
+    def block_user(self, user_id, reason, block_duration, blocked_by):
+        """Foydalanuvchini bloklash"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Blok muddatini hisoblash
+            from datetime import datetime, timedelta
+            blocked_until = None
+            
+            if block_duration == "24_soat":
+                blocked_until = datetime.now() + timedelta(hours=24)
+            elif block_duration == "7_kun":
+                blocked_until = datetime.now() + timedelta(days=7)
+            # "Noma'lum" uchun cheklov qo'ymaymiz
+            
+            cursor.execute('''
+                INSERT OR REPLACE INTO blocked_users 
+                (user_id, reason, block_duration, blocked_until, blocked_by, is_active)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (user_id, reason, block_duration, blocked_until, blocked_by, True))
+            conn.commit()
+            return True
 
-    # ==================== FOYDALANUVCHINING RUXSATLARINI TEKSHIRISH ====================
-    def check_user_access(self, user_id, content_id):
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT * FROM user_access 
-            WHERE user_id = ? AND content_id = ?
-        ''', (user_id, content_id))
-        access = cursor.fetchone()
-        conn.close()
-        return access is not None    
+    def unblock_user(self, user_id):
+        """Foydalanuvchini blokdan ochish"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE blocked_users 
+                SET is_active = FALSE 
+                WHERE user_id = ? AND is_active = TRUE
+            ''', (user_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def is_user_blocked(self, user_id):
+        """Foydalanuvchi bloklanganligini tekshirish"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT reason, block_duration, blocked_until 
+                FROM blocked_users 
+                WHERE user_id = ? AND is_active = TRUE
+            ''', (user_id,))
+            result = cursor.fetchone()
+            
+            print(f"🛠️ DEBUG: is_user_blocked - User: {user_id}, Result: {result}")  # DEBUG qo'shamiz
+            
+            if result:
+                reason, block_duration, blocked_until = result
+                # Agar muddatli blok bo'lsa va muddat o'tgan bo'lsa
+                if blocked_until:
+                    from datetime import datetime
+                    current_time = datetime.now()
+                    blocked_until_time = datetime.fromisoformat(blocked_until)
+                    print(f"🛠️ DEBUG: Current: {current_time}, Blocked until: {blocked_until_time}")  # DEBUG
+                    
+                    if current_time > blocked_until_time:
+                        # Muddat o'tgan, avtomatik ochish
+                        print(f"🛠️ DEBUG: Block expired, auto-unblocking user {user_id}")  # DEBUG
+                        self.unblock_user(user_id)
+                        return False
+                return True
+            return False
+
+    def get_blocked_user_info(self, user_id):
+        """Bloklangan foydalanuvchi ma'lumotlari"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT reason, block_duration, blocked_until, blocked_at, blocked_by
+                FROM blocked_users 
+                WHERE user_id = ? AND is_active = TRUE
+            ''', (user_id,))
+            return cursor.fetchone()
+
+    def get_all_blocked_users(self):
+        """Barcha bloklangan foydalanuvchilar"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT bu.user_id, u.first_name, bu.reason, bu.block_duration, bu.blocked_at
+                FROM blocked_users bu
+                LEFT JOIN users u ON bu.user_id = u.user_id
+                WHERE bu.is_active = TRUE
+            ''')
+            return cursor.fetchall()
+    
+    # ==============================================================================
+    # -*-*- KINO O'CHIRISH -*-*-
+    # ==============================================================================
+    def delete_movie(self, movie_id):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM movies WHERE movie_id = ?', (movie_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    # -*-*- KATEGORIYA BO'YICHA KINOLARNI OLISH -*-*-
+    def get_movies_by_category_for_admin(self, category):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT movie_id, title, actor_name, price, created_at 
+                FROM movies 
+                WHERE category LIKE ? 
+                ORDER BY created_at DESC
+            ''', (f'{category}%',))
+            return cursor.fetchall()
+
+    # -*-*- KINO ID BO'YICHA NOMINI OLISH -*-*-
+    def get_movie_title_by_id(self, movie_id):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT title FROM movies WHERE movie_id = ?', (movie_id,))
+            result = cursor.fetchone()
+            return result[0] if result else "Noma'lum"
+
+    # ==============================================================================
+    # -*-*- BARCHA KINOLARNI OLISH -*-*-
+    # ==============================================================================
+    def get_all_movies(self):
+        """Barcha kinolarni olish"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT movie_id, title, description, category, file_id, price, 
+                       is_premium, actor_name, banner_file_id, created_at, added_by 
+                FROM movies 
+                ORDER BY created_at DESC
+            ''')
+            return cursor.fetchall()
+            
+    def get_free_movies(self):
+        """Barcha bepul kinolarni olish"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT movie_id, title, description, category, file_id, price, 
+                       is_premium, actor_name, banner_file_id, created_at, added_by 
+                FROM movies 
+                WHERE price = 0
+                ORDER BY created_at DESC
+            ''')
+            return cursor.fetchall()
+
+    def get_all_movies_sorted(self):
+        """Barcha kinolarni saralab olish"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT movie_id, title, description, category, file_id, price, 
+                       is_premium, actor_name, banner_file_id, created_at, added_by 
+                FROM movies 
+                ORDER BY 
+                    CASE WHEN price = 0 THEN 0 ELSE 1 END,
+                    created_at DESC
+            ''')
+            return cursor.fetchall()
+            
+    def search_movies(self, search_query):
+        """Kinolarni qidirish (nomi, aktyori, kategoriyasi bo'yicha)"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            search_pattern = f'%{search_query}%'
+            cursor.execute('''
+                SELECT movie_id, title, description, category, file_id, price, 
+                       is_premium, actor_name, banner_file_id, created_at, added_by 
+                FROM movies 
+                WHERE title LIKE ? OR actor_name LIKE ? OR category LIKE ? OR description LIKE ?
+                ORDER BY 
+                    CASE WHEN price = 0 THEN 0 ELSE 1 END,
+                    created_at DESC
+            ''', (search_pattern, search_pattern, search_pattern, search_pattern))
+            return cursor.fetchall()        
+    
+    # ==============================================================================
+    # -*-*- BLOKLASH FUNKSIYALARI -*-*-
+    # ==============================================================================
+
+    def block_user(self, user_id, reason, block_duration, blocked_by):
+        """Foydalanuvchini bloklash"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Blok muddatini hisoblash
+            from datetime import datetime, timedelta
+            blocked_until = None
+            
+            if block_duration == "24_soat":
+                blocked_until = datetime.now() + timedelta(hours=24)
+            elif block_duration == "7_kun":
+                blocked_until = datetime.now() + timedelta(days=7)
+            # "Noma'lum" uchun cheklov qo'ymaymiz
+            
+            cursor.execute('''
+                INSERT OR REPLACE INTO blocked_users 
+                (user_id, reason, block_duration, blocked_until, blocked_by, is_active)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (user_id, reason, block_duration, blocked_until, blocked_by, True))
+            conn.commit()
+            return True
+
+    def unblock_user(self, user_id):
+        """Foydalanuvchini blokdan ochish"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE blocked_users 
+                SET is_active = FALSE 
+                WHERE user_id = ? AND is_active = TRUE
+            ''', (user_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def is_user_blocked(self, user_id):
+        """Foydalanuvchi bloklanganligini tekshirish"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT reason, block_duration, blocked_until 
+                FROM blocked_users 
+                WHERE user_id = ? AND is_active = TRUE
+            ''', (user_id,))
+            result = cursor.fetchone()
+            
+            print(f"🛠️ DEBUG: is_user_blocked - User: {user_id}, Result: {result}")
+            
+            if result:
+                reason, block_duration, blocked_until = result
+                # Agar muddatli blok bo'lsa va muddat o'tgan bo'lsa
+                if blocked_until:
+                    from datetime import datetime
+                    current_time = datetime.now()
+                    blocked_until_time = datetime.fromisoformat(blocked_until)
+                    print(f"🛠️ DEBUG: Current: {current_time}, Blocked until: {blocked_until_time}")
+                    
+                    if current_time > blocked_until_time:
+                        # Muddat o'tgan, avtomatik ochish
+                        print(f"🛠️ DEBUG: Block expired, auto-unblocking user {user_id}")
+                        self.unblock_user(user_id)
+                        return False
+                return True
+            return False
+
+    def get_blocked_user_info(self, user_id):
+        """Bloklangan foydalanuvchi ma'lumotlari"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT reason, block_duration, blocked_until, blocked_at, blocked_by
+                FROM blocked_users 
+                WHERE user_id = ? AND is_active = TRUE
+            ''', (user_id,))
+            return cursor.fetchone()
+
+    def get_all_blocked_users(self):
+        """Barcha bloklangan foydalanuvchilar"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT bu.user_id, u.first_name, bu.reason, bu.block_duration, bu.blocked_at
+                FROM blocked_users bu
+                LEFT JOIN users u ON bu.user_id = u.user_id
+                WHERE bu.is_active = TRUE
+            ''')
+            return cursor.fetchall()      
+
+    def can_user_download(self, user_id, movie_id):
+        """Foydalanuvchi kino yuklab olish huquqiga ega ekanligini tekshirish"""
+        # Kino ma'lumotlarini olish
+        movie = self.get_movie_by_id(movie_id)
+        if not movie:
+            return False
+        
+        # Faqat PULLIK kinolarni yuklab olish mumkin
+        if movie[5] == 0:  # price = 0 (bepul)
+            return False
+        
+        # Agar foydalanuvchi kino sotib olgan bo'lsa
+        if self.check_user_purchase(user_id, movie_id):
+            return True
+        
+        # Agar foydalanuvchi premium bo'lsa
+        if self.check_premium_status(user_id):
+            return True
+        
+        return False       

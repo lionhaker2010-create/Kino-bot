@@ -1,5 +1,34 @@
-".env" 
-"__pycache__/" 
-"*.pyc" 
-"kino.db" 
-"*.log" 
+# Environment fayllar
+.env
+.env.local
+.env.production
+
+# Virtual muhit
+venv/
+env/
+.venv/
+
+# Python fayllar
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Ma'lumotlar bazasi
+*.db
+*.sqlite3
+
+# Log fayllar
+*.log
+logs/
+
+# OS fayllar
+.DS_Store
+Thumbs.db
+
+# IDE fayllar
+.vscode/
+.idea/
+*.swp
+*.swo

@@ -1,2948 +1,3540 @@
-# ==================== IMPORT QISM ====================
 import os
-import logging
-from datetime import datetime
-import pytz
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
-from telegram.ext import (
-    Application, CommandHandler, MessageHandler, filters,
-    ContextTypes, ConversationHandler, CallbackQueryHandler
-)
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
-from database import Database
-from admin import AdminPanel, handle_admin_messages, reply_to_user, confirm_payment, admin_start, handle_admin_files
+import time
+import asyncio
+from aiogram import Bot, Dispatcher, types, F
+from aiogram.filters import CommandStart
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.context import FSMContext
 from dotenv import load_dotenv
+
+from database import Database
+from admin import AdminManager, AdvertisementState
+from admin import DeleteContentState
+from keep_alive import keep_alive
 
 load_dotenv()
 
-# Database
-db = Database()
-
-# Admin panel - faqat instance yaratamiz
-admin_panel = AdminPanel()
-
-# ==================== LOGGER SOZLASH ====================
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-
-# ==================== KONSTANTALAR ====================
+# ==============================================================================
+# -*-*- BOT KONFIGURATSIYASI -*-*-
+# ==============================================================================
 BOT_TOKEN = os.getenv('BOT_TOKEN')
-ADMIN_ID = os.getenv('ADMIN_ID')
+ADMIN_ID = int(os.getenv('ADMIN_ID'))
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher()
 
+# ==============================================================================
+# -*-*- DATABASE VA ADMIN MANAGER -*-*-
+# ==============================================================================
 db = Database()
-admin_panel = AdminPanel()
+admin_manager = AdminManager(db)
 
-LANGUAGE, NAME, PHONE = range(3)  # Conversation states
+print(f"🔄 Bot ishga tushmoqda...")
+print(f"🔑 Admin ID: {ADMIN_ID}")
+print(f"🤖 Bot token: {BOT_TOKEN[:10]}...")
 
-# ==================== AVTOMATIK XABARLAR ====================
-AUTOMATIC_MESSAGES = [
-    {
-        "time": "09:00",
-        "message": (
-            "🕌 Assalomu Aleykum! Xayrli tong! 🌅\n\n"
-            "🌟 Yangi kun yangi imkoniyatlar bilan keldi! \n"
-            "🎬 Bugun o'zingizni sevimli kinolar olamiga cho'mdirib yuboring!\n\n"
-            "🔍 Qidiruv bo'limi orqali istalgan kinoni toping va kuningizni yorqin qiling! ✨\n"
-            "💫 Yaxshi kayfiyat va yorqin tomoshalar tilaymiz! 🍿"
-        )
-    },
-    {
-        "time": "14:00",
-        "message": (
-            "🕌 Assalomu Aleykum! Quyoshli peshin! ☀️\n\n"
-            "🍽️ Tushlikdan keyin dam olish vaqtida sevimli seriallaringiz bilan hordiq chiqaring!\n\n"
-            "📺 Seriallar bo'limida yangi fasllar sizni kutmoqda!\n"
-            "💖 Dam oling, tomosha qiling va rohatlaning! 🎉"
-        )
-    },
-    {
-        "time": "20:00",
-        "message": (
-            "🕌 Assalomu Aleykum! Sokin kechalar! 🌙\n\n"
-            "🏡 Kechqurun - oila va do'stlar bilan birga bo'lish va go'zal tomoshalar orttirish vaqti!\n\n"
-            "🍿 Lazzatli snacklar tayyorlang va sevimli filmlaringizga sho'ng'ing!\n"
-            "💫 Sizga quvonch va dam olish bilan to'la kech tilaymiz! ❤️"
-        )
-    }
-]
+# ==============================================================================
+# -*-*- RO'YXATDAN O'TISH HOLATLARI -*-*-
+# ==============================================================================
+class Registration(StatesGroup):
+    language = State()
+    name = State()
+    phone = State()
 
-# ==================== TIL MATNLARI ====================
-TEXTS = {
-    'uz': {
-        # Asosiy
-        'welcome': "🤗 Assalomu Aleykum Dunyo Kinosi Olamiga xush kelibsiz",
-        'description': "🎬 Bu Bot Siz izlagan barcha Kino va Seriallarni o'z ichiga olgan",
-        'search': "🔍 Sevimli Kino va Seriallaringizni va Multfilmlarni To'liq Nomi Yozib Qidiruv Bo'limi Orqali topshingiz mumkin",
-        'register': "✅ Iltimos Botdan To'liq Foydalanish uchun Ro'yxatdan O'ting faqat Bir marta",
-        'choose_language': "🌐 Tilni tanlang",
-        'enter_name': "👤 Ismingizni kiriting:",
-        'enter_phone': "📞 Telefon raqamingizni kiriting:",
-        'success_register': "✅ Ro'yxatdan muvaffaqiyatli o'tdingiz!",
-        
-        # Asosiy menyu
-        'main_menu': "🏠 Asosiy menyu",
-        'search_movies': "🎬 Kino qidirish",
-        'categories': "📋 Kategoriyalar",
-        'profile': "👤 Profil",
-        'premium_services': "💼 Pullik Hizmatlar",
-        'change_language': "🌐 Tilni tanlash",
-        
-        # Kategoriyalar
-        'choose_category': "📋 Kategoriyalar:\nIltimos kerakli kategoriyani tanlang:",
-        'hollywood': "🎭 Hollywood Kinolari",
-        'hindi': "🇮🇳 Hind Filmlari",
-        'russian': "🇷🇺 Rus Kinolari",
-        'uzbek': "🇺🇿 O'zbek Kinolari",
-        'islamic': "🕌 Islomiy Kinolar",
-        'turkish': "📺 Turk Seriallari",
-        'kids': "👶 Bolalar Kinolari",
-        'cartoons': "🐰 Bolalar Multfilmlari",
-        'korean_movies': "🇰🇷 Koreys Kinolari",
-        'korean_series': "📺 Koreys Seriallari",
-        'music': "🎵 Musiqa",
-        
-        # Sahifalash
-        'page_info': "📄 Sahifa: {page}/{total_pages} | Jami: {total_count} ta",
-        'view_content': "⬇️ Quyidagi kontentlarni ko'ring:",
-        'content_sent': "✅ {count} ta kontent yuborildi",
-        'navigation_help': "⬅️ Oldingi/Keyingi ➡️ tugmalari bilan navigatsiya qiling",
-        'no_content': "❌ Hozircha {subject} mavjud emas",
-        'content_soon': "⏳ Tez orada qo'shiladi yoki\n💼 Pullik hizmatlar bo'limidan so'rab olishingiz mumkin",
-        
-        # Profil
-        'profile_info': "👤 Profil:\n🆔 ID: {user_id}\n📛 Ism: {name}\n📞 Tel: {phone}",
-        'profile_not_found': "❌ Profil topilmadi",
-        
-        # Qidiruv
-        'search_prompt': "🔍 Kino qidirish:\nIltimos kino nomini kiriting:",
-        'search_results': "🔍 '{query}' bo'yicha natijalar:",
-        'no_results': "❌ '{query}' bo'yicha hech narsa topilmadi",
-        
-        # Pullik hizmatlar
-        'premium_menu': "💼 Pullik Hizmatlar bo'limi\n\nQuyidagi tugmalardan birini tanlang:",
-        'paid_movies': "💰 Pullik Kinolar",
-        'contact_admin': "📞 Adminga Xabar",
-        'view_response': "👀 Javobni Ko'rish",
-        'back': "🔙 Orqaga",
-        
-        # To'lov va ogohlantirish
-        'warning': "⚠️ OGOHLANTIRISH! ⚠️",
-        'warning_text': """Hurmatli foydalanuvchi!
+# ==============================================================================
+# -*-*- QIDIRUV HOLATI -*-*-
+# ==============================================================================
+class SearchState(StatesGroup):
+    waiting_search_query = State()
 
-📝 Mavzulardan chetga chiqmagan holda so'rovlar yuboring
-🚫 Nomaqbul va xaqoratlik so'zlar ishlatmang
-👁️ Bot to'liq kuzatiladi, o'zingizni asrang
-🙏 Tushunganingiz uchun katta rahmat
+# ==============================================================================
+# -*-*- KLAVIATURALAR -*-*-
+# ==============================================================================
 
-👨‍💼 Admin ruhsati bilan""",
-        
-        'payment_info': """💳 Admin karta raqami: 8600 1104 7759 4067
-
-💰 Narxlar:
-🎬 Birgina kino narhi - 30,000 so'm
-📺 Birgina serial narhi - 10,000 so'm
-🐰 Birgina multfilm narhi - 30,000 so'm
-
-📸 To'lov qilib bo'lgach chek surati yuboring
-👨‍💼 Adminga yuboring
-
-❓ Sizni qanday kontentlar qiziqtirmoqda?
-📝 Shularni batafsil yozing
-
-📞 Agar botimiz javob bermasa: @Operator_1985""",
-        
-        # Admin kontakt
-        'admin_contact_info': """👨‍💼 Adminga xabar yuborish
-
-📝 Sizni qiziqtirgan kontent nomini uz/ru/en tillarida yozishingiz mumkin
-
-✅ Agar bu kontentlar mavjud bo'lsa,
-👨‍💼 Operator sizga javob yuboradi
-
-💼 Pullik kontentlarni sotib olish pullik hizmat bo'limi bilan tanishib chiqing
-
-👇 Xabaringizni yozing va yuboring:""",
-        
-        'payment_instructions': """💳 To'lov va buyurtma tartibi:
-
-1️⃣ Pullik hizmatlar bilan tanishgan bo'lsangiz
-2️⃣ Quyidagi ma'lumotlarni yuboring:
-
-📸 To'lov chek surati
-📝 Kontent nomi (aniq va xatolarsiz)
-
-💳 To'lov qilish uchun karta raqami:
-8600 1104 7759 4067
-
-📞 Qo'shimcha ma'lumot uchun: @Operator_1985""",
-        
-        # Xabar yuborish
-        'message_sent': "✅ Xabaringiz adminga yuborildi!",
-        'response_soon': "⏳ Tez orada javob beradi.",
-        'view_response_section': "👀 Javobni 'Javobni Ko'rish' bo'limida ko'rashingiz mumkin.",
-        
-        # Javob ko'rish
-        'no_response': "👀 Javobni ko'rish:\n\n📨 Hozircha sizga hech qanday javob kelmagan.\n⏳ Agar admin javob yuborgan bo'lsa, tez orada shu yerda ko'rasiz.\n\n📞 Shoshilgan bo'lsangiz: @Operator_1985",
-        
-        # Xatoliklar
-        'error_loading': "❌ Kontentlarni yuklashda xatolik yuz berdi. Iltimos qayta urinib ko'ring.",
-        'error_sending': "❌ Fayl yuborishda xatolik",
-        'first_page': "❌ Siz birinchi sahifadasiz",
-        'last_page': "❌ Siz oxirgi sahifadasiz",
-        'no_page_content': "❌ Bu sahifada kontent yo'q",
-        'invalid_page': "❌ Noto'g'ri sahifa formati",
-        'no_pagination_data': "❌ Sahifalash ma'lumotlari topilmadi",
-    },
+# ==============================================================================
+# -*-*- PREMIUM BOSHQARUV HOLATLARI -*-*-
+# ==============================================================================
+class PremiumManagementState(StatesGroup):
+    waiting_user_id = State()
+    waiting_action = State()
+    waiting_duration = State()
+    waiting_confirmation = State()
     
-    'ru': {
-        # Asosiy
-        'welcome': "🤗 Добро пожаловать в мир мирового кино",
-        'description': "🎬 Этот бот содержит все фильмы и сериалы, которые вы искали",
-        'search': "🔍 Вы можете найти свои любимые фильмы, сериалы и мультфильмы, написав полное название в разделе поиска",
-        'register': "✅ Пожалуйста, зарегистрируйтесь для полного использования бота всего один раз",
-        'choose_language': "🌐 Выберите язык",
-        'enter_name': "👤 Введите ваше имя:",
-        'enter_phone': "📞 Введите ваш номер телефона:",
-        'success_register': "✅ Вы успешно зарегистрировались!",
-        
-        # Asosiy menyu
-        'main_menu': "🏠 Главное меню",
-        'search_movies': "🎬 Поиск фильмов",
-        'categories': "📋 Категории",
-        'profile': "👤 Профиль",
-        'premium_services': "💼 Платные услуги",
-        'change_language': "🌐 Сменить язык",
-        
-        # Kategoriyalar
-        'choose_category': "📋 Категории:\nПожалуйста, выберите нужную категорию:",
-        'hollywood': "🎭 Голливудские фильмы",
-        'hindi': "🇮🇳 Индийские фильмы",
-        'russian': "🇷🇺 Русские фильмы",
-        'uzbek': "🇺🇿 Узбекские фильмы",
-        'islamic': "🕌 Исламские фильмы",
-        'turkish': "📺 Турецкие сериалы",
-        'kids': "👶 Детские фильмы",
-        'cartoons': "🐰 Детские мультфильмы",
-        'korean_movies': "🇰🇷 Корейские фильмы",
-        'korean_series': "📺 Корейские сериалы",
-        'music': "🎵 Музыка",
-        
-        # Sahifalash
-        'page_info': "📄 Страница: {page}/{total_pages} | Всего: {total_count} шт",
-        'view_content': "⬇️ Просмотрите следующий контент:",
-        'content_sent': "✅ Отправлено {count} контентов",
-        'navigation_help': "⬅️ Навигация с помощью кнопок Предыдущий/Следующий ➡️",
-        'no_content': "❌ Пока нет {subject}",
-        'content_soon': "⏳ Скоро будет добавлено или\n💼 Вы можете запросить в разделе платных услуг",
-        
-        # Profil
-        'profile_info': "👤 Профиль:\n🆔 ID: {user_id}\n📛 Имя: {name}\n📞 Тел: {phone}",
-        'profile_not_found': "❌ Профиль не найден",
-        
-        # Qidiruv
-        'search_prompt': "🔍 Поиск фильмов:\nПожалуйста, введите название фильма:",
-        'search_results': "🔍 Результаты по запросу '{query}':",
-        'no_results': "❌ По запросу '{query}' ничего не найдено",
-        
-        # Pullik hizmatlar
-        'premium_menu': "💼 Раздел платных услуг\n\nВыберите одну из кнопок ниже:",
-        'paid_movies': "💰 Платные фильмы",
-        'contact_admin': "📞 Связаться с админом",
-        'view_response': "👀 Посмотреть ответ",
-        'back': "🔙 Назад",
-        
-        # To'lov va ogohlantirish
-        'warning': "⚠️ ПРЕДУПРЕЖДЕНИЕ! ⚠️",
-        'warning_text': """Уважаемый пользователь!
-
-📝 Отправляйте запросы, не отклоняясь от темы
-🚫 Не используйте нецензурные и оскорбительные слова
-👁️ Бот полностью отслеживается, будьте осторожны
-🙏 Большое спасибо за понимание
-
-👨‍💼 С разрешения администратора""",
-        
-        'payment_info': """💳 Номер карты администратора: 8600 1104 7759 4067
-
-💰 Цены:
-🎬 Один фильм - 30,000 сум
-📺 Один сериал - 10,000 сум
-🐰 Один мультфильм - 30,000 сум
-
-📸 После оплаты отправьте скриншот чека
-👨‍💼 Отправьте администратору
-
-❓ Каким контентом вы интересуетесь?
-📝 Подробно напишите об этом
-
-📞 Если наш бот не отвечает: @Operator_1985""",
-        
-        # Admin kontakt
-        'admin_contact_info': """👨‍💼 Отправить сообщение администратору
-
-📝 Вы можете написать название контента, который вас интересует, на уз/рус/англ языках
-
-✅ Если этот контент доступен,
-👨‍💼 Оператор ответит вам
-
-💼 Ознакомьтесь с разделом платных услуг для покупки платного контента
-
-👇 Напишите и отправьте ваше сообщение:""",
-        
-        'payment_instructions': """💳 Процедура оплаты и заказа:
-
-1️⃣ Если вы ознакомились с платными услугами
-2️⃣ Отправьте следующую информацию:
-
-📸 Скриншот чека об оплате
-📝 Название контента (точно и без ошибок)
-
-💳 Номер карты для оплаты:
-8600 1104 7759 4067
-
-📞 Для дополнительной информации: @Operator_1985""",
-        
-        # Xabar yuborish
-        'message_sent': "✅ Ваше сообщение отправлено администратору!",
-        'response_soon': "⏳ Скоро ответит.",
-        'view_response_section': "👀 Вы можете посмотреть ответ в разделе 'Посмотреть ответ'.",
-        
-        # Javob ko'rish
-        'no_response': "👀 Посмотреть ответ:\n\n📨 Пока вам не пришло никаких ответов.\n⏳ Если администратор отправил ответ, вы скоро увидите его здесь.\n\n📞 Если срочно: @Operator_1985",
-        
-        # Xatoliklar
-        'error_loading': "❌ Произошла ошибка при загрузке контента. Пожалуйста, попробуйте еще раз.",
-        'error_sending': "❌ Ошибка при отправке файла",
-        'first_page': "❌ Вы на первой странице",
-        'last_page': "❌ Вы на последней странице",
-        'no_page_content': "❌ На этой странице нет контента",
-        'invalid_page': "❌ Неправильный формат страницы",
-        'no_pagination_data': "❌ Данные пагинации не найдены",
-    },
+# ==============================================================================
+# -*-*- KONTENT BOSHQARUV HOLATLARI -*-*-
+# ==============================================================================
+class ContentManagementState(StatesGroup):
+    waiting_content_type = State()
+    waiting_movie_title = State()
+    waiting_movie_description = State()
+    waiting_main_category = State()
+    waiting_sub_category = State()
+    waiting_movie_price = State()  
+    waiting_movie_banner = State()  # <- YANGI: banner rasm
+    waiting_movie_file = State()
     
-    'en': {
-        # Asosiy
-        'welcome': "🤗 Welcome to the World Cinema Universe",
-        'description': "🎬 This Bot contains all the Movies and Series you are looking for",
-        'search': "🔍 You can find your favorite Movies, Series and Cartoons by writing the Full Name in the Search section",
-        'register': "✅ Please Register to use the Bot Fully only Once",
-        'choose_language': "🌐 Choose language",
-        'enter_name': "👤 Enter your name:",
-        'enter_phone': "📞 Enter your phone number:",
-        'success_register': "✅ You have successfully registered!",
-        
-        # Asosiy menyu
-        'main_menu': "🏠 Main menu",
-        'search_movies': "🎬 Search movies",
-        'categories': "📋 Categories",
-        'profile': "👤 Profile",
-        'premium_services': "💼 Premium Services",
-        'change_language': "🌐 Change language",
-        
-        # Kategoriyalar
-        'choose_category': "📋 Categories:\nPlease select the desired category:",
-        'hollywood': "🎭 Hollywood Movies",
-        'hindi': "🇮🇳 Hindi Films",
-        'russian': "🇷🇺 Russian Movies",
-        'uzbek': "🇺🇿 Uzbek Movies",
-        'islamic': "🕌 Islamic Movies",
-        'turkish': "📺 Turkish Series",
-        'kids': "👶 Kids Movies",
-        'cartoons': "🐰 Kids Cartoons",
-        'korean_movies': "🇰🇷 Korean Movies",
-        'korean_series': "📺 Korean Series",
-        'music': "🎵 Music",
-        
-        # Sahifalash
-        'page_info': "📄 Page: {page}/{total_pages} | Total: {total_count} items",
-        'view_content': "⬇️ View the following content:",
-        'content_sent': "✅ {count} content items sent",
-        'navigation_help': "⬅️ Navigate with Previous/Next ➡️ buttons",
-        'no_content': "❌ No {subject} available yet",
-        'content_soon': "⏳ Coming soon or\n💼 You can request in premium services section",
-        
-        # Profil
-        'profile_info': "👤 Profile:\n🆔 ID: {user_id}\n📛 Name: {name}\n📞 Phone: {phone}",
-        'profile_not_found': "❌ Profile not found",
-        
-        # Qidiruv
-        'search_prompt': "🔍 Search movies:\nPlease enter the movie name:",
-        'search_results': "🔍 Results for '{query}':",
-        'no_results': "❌ Nothing found for '{query}'",
-        
-        # Pullik hizmatlar
-        'premium_menu': "💼 Premium Services section\n\nSelect one of the buttons below:",
-        'paid_movies': "💰 Paid Movies",
-        'contact_admin': "📞 Contact Admin",
-        'view_response': "👀 View Response",
-        'back': "🔙 Back",
-        
-        # To'lov va ogohlantirish
-        'warning': "⚠️ WARNING! ⚠️",
-        'warning_text': """Dear user!
+# ==============================================================================
+# -*-*- BLOKLASH HOLATLARI -*-*-
+# ==============================================================================
+class BlockUserState(StatesGroup):
+    waiting_user_id = State()
+    waiting_reason = State()
+    waiting_duration = State()
+    waiting_confirmation = State()
 
-📝 Send requests without deviating from topics
-🚫 Do not use inappropriate and offensive words
-👁️ The bot is fully monitored, be careful
-🙏 Thank you for understanding
+class UnblockUserState(StatesGroup):
+    waiting_user_id = State()   
 
-👨‍💼 With admin permission""",
-        
-        'payment_info': """💳 Admin card number: 8600 1104 7759 4067
-
-💰 Prices:
-🎬 Single movie - 30,000 soum
-📺 Single series - 10,000 soum
-🐰 Single cartoon - 30,000 soum
-
-📸 After payment, send screenshot of receipt
-👨‍💼 Send to admin
-
-❓ What content are you interested in?
-📝 Write about it in detail
-
-📞 If our bot doesn't respond: @Operator_1985""",
-        
-        # Admin kontakt
-        'admin_contact_info': """👨‍💼 Send message to admin
-
-📝 You can write the name of content you're interested in uz/ru/en languages
-
-✅ If this content is available,
-👨‍💼 Operator will respond to you
-
-💼 Check premium services section for purchasing paid content
-
-👇 Write and send your message:""",
-        
-        'payment_instructions': """💳 Payment and order procedure:
-
-1️⃣ If you've familiarized with premium services
-2️⃣ Send the following information:
-
-📸 Screenshot of payment receipt
-📝 Content name (accurate and error-free)
-
-💳 Card number for payment:
-8600 1104 7759 4067
-
-📞 For additional information: @Operator_1985""",
-        
-        # Xabar yuborish
-        'message_sent': "✅ Your message has been sent to admin!",
-        'response_soon': "⏳ Will respond soon.",
-        'view_response_section': "👀 You can view the response in 'View Response' section.",
-        
-        # Javob ko'rish
-        'no_response': "👀 View Response:\n\n📨 You haven't received any responses yet.\n⏳ If admin sent a response, you'll see it here soon.\n\n📞 If urgent: @Operator_1985",
-        
-        # Xatoliklar
-        'error_loading': "❌ Error loading content. Please try again.",
-        'error_sending': "❌ Error sending file",
-        'first_page': "❌ You are on the first page",
-        'last_page': "❌ You are on the last page",
-        'no_page_content': "❌ No content on this page",
-        'invalid_page': "❌ Invalid page format",
-        'no_pagination_data': "❌ Pagination data not found",
-    }
-}
-
-# ==================== TIL TANLASH HANDLERLARI ====================
-async def handle_uzbek_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """O'zbek tilini tanlash"""
-    context.user_data['language'] = 'uz'
-    lang = 'uz'
-    text = TEXTS[lang]
+# ==============================================================================
+# -*-*- TO'LOV HOLATLARI -*-*-
+# ==============================================================================
+class PaymentState(StatesGroup):
+    waiting_payment_method = State()
+    waiting_payment_confirmation = State()
+    waiting_payment_receipt = State()    
     
-    await update.message.reply_text(
-        text['welcome'] + "\n\n" +
-        text['description'] + "\n\n" +
-        text['search'] + "\n\n" +
-        text['register'] + "\n\n" +
-        text['enter_name'],
-        reply_markup=ReplyKeyboardRemove()
-    )
-    return NAME
-
-async def handle_russian_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Rus tilini tanlash"""
-    context.user_data['language'] = 'ru'
-    lang = 'ru'
-    text = TEXTS[lang]
+# ==============================================================================
+# -*-*- YAGONA BO'LIM KLAVIATURASI -*-*-
+# ==============================================================================
+def get_category_keyboard(category_type, category_name=None):
+    """Barcha bo'limlar uchun yagona klaviatura"""
+    db = Database()  # Database obyektini yaratish
+    all_categories = db.get_all_categories()  # <- db orqali chaqirish
     
-    await update.message.reply_text(
-        text['welcome'] + "\n\n" +
-        text['description'] + "\n\n" +
-        text['search'] + "\n\n" +
-        text['register'] + "\n\n" +
-        text['enter_name'],
-        reply_markup=ReplyKeyboardRemove()
-    )
-    return NAME
-
-async def handle_english_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Ingliz tilini tanlash"""
-    context.user_data['language'] = 'en'
-    lang = 'en'
-    text = TEXTS[lang]
+    if category_type == "main":
+        categories = all_categories["main_categories"]
+    elif category_type == "sub":
+        categories = all_categories["sub_categories"].get(category_name, [])
     
-    await update.message.reply_text(
-        text['welcome'] + "\n\n" +
-        text['description'] + "\n\n" +
-        text['search'] + "\n\n" +
-        text['register'] + "\n\n" +
-        text['enter_name'],
-        reply_markup=ReplyKeyboardRemove()
-    )
-    return NAME
+    keyboard = []
+    row = []
     
-async def choose_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Tilni tanlash"""
-    lang_text = update.message.text
+    for i, category in enumerate(categories):
+        row.append(KeyboardButton(text=category))
+        if len(row) == 2 or i == len(categories) - 1:
+            keyboard.append(row)
+            row = []
     
-    print(f"DEBUG: Til tanlandi: '{lang_text}'")  # Debug uchun
-    
-    if lang_text == "🇺🇿 O'zbek tili":
-        context.user_data['language'] = 'uz'
-        lang = 'uz'
-    elif lang_text == "🇷🇺 Русский язык":
-        context.user_data['language'] = 'ru'
-        lang = 'ru'
-    elif lang_text == "🇺🇸 English":
-        context.user_data['language'] = 'en'
-        lang = 'en'
+    if category_type == "main":
+        keyboard.append([KeyboardButton(text="🔙 Asosiy Menyu")])
     else:
-        lang = 'uz'  # Default
+        keyboard.append([KeyboardButton(text="🔙 Orqaga")])
     
-    text = TEXTS[lang]
+    return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     
-    await update.message.reply_text(
-        text['welcome'] + "\n\n" +
-        text['description'] + "\n\n" +
-        text['search'] + "\n\n" +
-        text['register'] + "\n\n" +
-        text['enter_name'],
-        reply_markup=ReplyKeyboardRemove()
-    )
-    return NAME    
+# ==============================================================================
+# -*-*- ASOSIY KATEGORIYALAR KLAVIATURASI -*-*-
+# ==============================================================================
+def main_categories_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🎭 Hollywood"), KeyboardButton(text="🎬 Hind")],
+            [KeyboardButton(text="🎥 Rus"), KeyboardButton(text="🎞️ O'zbek")],
+            [KeyboardButton(text="🕌 Islomiy"), KeyboardButton(text="🇹🇷 Turk")],
+            [KeyboardButton(text="👶 Bolalar"), KeyboardButton(text="🇰🇷 Koreys")],
+            [KeyboardButton(text="🔙 Orqaga")],
+        ],
+        resize_keyboard=True
+    )   
 
-# ==================== ASOSIY MENU FUNKSIYALARI ====================
-def get_main_menu(lang='uz'):
-    """Tilga qarab asosiy menyu"""
-    if lang == 'uz':
-        keyboard = [
-            ["🎬 Kino qidirish", "📋 Kategoriyalar"],
-            ["👤 Profil", "💼 Pullik Hizmatlar"],
-            ["🌐 Tilni tanlash"]
-        ]
-    elif lang == 'ru':
-        keyboard = [
-            ["🎬 Поиск фильмов", "📋 Категории"],
-            ["👤 Профиль", "💼 Платные услуги"],
-            ["🌐 Сменить язык"]
-        ]
+# ==============================================================================
+# -*-*- ICHKI KATEGORIYALAR KLAVIATURASI -*-*-
+# ==============================================================================
+def get_sub_categories_keyboard(main_category):
+    if main_category == "🎭 Hollywood":
+        return ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="🎬 Mel Gibson"), KeyboardButton(text="💪 Arnold Schwarzenegger")],
+                [KeyboardButton(text="🥊 Sylvester Stallone"), KeyboardButton(text="🚗 Jason Statham")],
+                [KeyboardButton(text="🐲 Jeki Chan"), KeyboardButton(text="🥋 Skod Adkins")],
+                [KeyboardButton(text="📽️ Barcha Hollywood"), KeyboardButton(text="🔙 Orqaga")],
+            ],
+            resize_keyboard=True
+        )
+    elif main_category == "🎬 Hind":
+        return ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="🤴 Shakruhkhan"), KeyboardButton(text="🎬 Amirkhan")],
+                [KeyboardButton(text="💪 Akshay Kumar"), KeyboardButton(text="👑 Salmonkhan")],
+                [KeyboardButton(text="📀 Barcha Hind"), KeyboardButton(text="🔙 Orqaga")],
+            ],
+            resize_keyboard=True
+        )
+    # ... boshqa kategoriyalar uchun ham shunday    
+
+# -*-*- TIL TANLASH KLAVIATURASI -*-*-
+def language_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🇺🇿 O'zbek"), KeyboardButton(text="🇷🇺 Русский"), KeyboardButton(text="🏴 English")],
+        ],
+        resize_keyboard=True
+    )
+
+# -*-*- TELEFON RAQAM KLAVIATURASI -*-*-
+def phone_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📞 Telefon raqamni yuborish", request_contact=True)],
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
+
+# -*-*- ASOSIY MENYU KLAVIATURASI -*-*-
+def main_menu_keyboard(user_id=None, username=None):
+    keyboard = [
+        [KeyboardButton(text="🎬 Barcha Kontentlar"), KeyboardButton(text="📁 Bo'limlar")],
+        [KeyboardButton(text="💵 Pullik Hizmatlar"), KeyboardButton(text="🔍 Qidiruv")],
+    ]
+    
+    # Premium taklif tugmasi
+    if user_id and not db.check_premium_status(user_id):
+        keyboard.append([KeyboardButton(text="💎 Premiumga O'tish"), KeyboardButton(text="🎁 Aksiya")])
+    
+    # Admin panel
+    if user_id and admin_manager.is_admin(user_id, username):
+        keyboard.append([KeyboardButton(text="👑 Admin Panel")])
+    
+    return ReplyKeyboardMarkup(
+        keyboard=keyboard,
+        resize_keyboard=True
+    )
+
+# -*-*- BO'LIMLAR KLAVIATURASI -*-*-
+def sections_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🎭 Hollywood Kinolari"), KeyboardButton(text="🎬 Hind Filmlari")],
+            [KeyboardButton(text="📺 Hind Seriallari"), KeyboardButton(text="🎥 Rus Kinolari")],
+            [KeyboardButton(text="📟 Rus Seriallari"), KeyboardButton(text="🎞️ O'zbek Kinolari")],
+            [KeyboardButton(text="📱 O'zbek Seriallari"), KeyboardButton(text="🕌 Islomiy Kinolar")],
+            [KeyboardButton(text="📖 Islomiy Seriallar"), KeyboardButton(text="🇹🇷 Turk Kinolari")],
+            [KeyboardButton(text="📺 Turk Seriallari"), KeyboardButton(text="👶 Bolalar Kinolari")],
+            [KeyboardButton(text="🐰 Bolalar Multfilmlari"), KeyboardButton(text="🇰🇷 Koreys Kinolari")],
+            [KeyboardButton(text="📡 Koreys Seriallari"), KeyboardButton(text="🎯 Qisqa Filmlar")],
+            [KeyboardButton(text="🎤 Konsert Dasturlari"), KeyboardButton(text="🔙 Asosiy Menyu")],
+        ],
+        resize_keyboard=True
+    )
+
+# ==============================================================================
+# -*-*- ADMIN KLAVIATURALARI -*-*-
+# ==============================================================================
+
+# Oddiy admin klaviaturasi
+def admin_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📊 Foydalanuvchilar soni"), KeyboardButton(text="💰 Pullik Hizmatlar Statistika")],
+            [KeyboardButton(text="💰 To'lovlarni ko'rish"), KeyboardButton(text="📢 Reklama yuborish")],
+            [KeyboardButton(text="👑 Premium Boshqaruv"), KeyboardButton(text="🎬 Kontent Qo'shish")],
+            [KeyboardButton(text="📁 Kontentlar Boshqaruvi"), KeyboardButton(text="📋 Kinolar ro'yxati")],
+            [KeyboardButton(text="🔄 Holatni tozalash"), KeyboardButton(text="🔙 Asosiy Menyu")],
+        ],
+        resize_keyboard=True
+    )
+
+# Kengaytirilgan admin klaviaturasi
+def admin_advanced_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📊 Foydalanuvchilar soni"), KeyboardButton(text="💰 Pullik Hizmatlar Statistika")],
+            [KeyboardButton(text="💰 To'lovlarni ko'rish"), KeyboardButton(text="📢 Reklama yuborish")],
+            [KeyboardButton(text="👑 Premium Boshqaruv"), KeyboardButton(text="🎬 Kontent Qo'shish")],
+            [KeyboardButton(text="📁 Kontentlar Boshqaruvi"), KeyboardButton(text="📋 Kinolar ro'yxati")],
+            [KeyboardButton(text="🚫 Bloklash"), KeyboardButton(text="✅ Blokdan ochish")],
+            [KeyboardButton(text="🔄 Holatni tozalash"), KeyboardButton(text="🔙 Asosiy Menyu")],
+        ],
+        resize_keyboard=True
+    )
+    
+# ==============================================================================
+# -*-*- HOLATNI TOZALASH -*-*-
+# ==============================================================================
+@dp.message(F.text == "🔄 Holatni tozalash")
+async def clear_state(message: types.Message, state: FSMContext):
+    await state.clear()
+    await message.answer("✅ Holat tozalandi. Qaytadan boshlang.", reply_markup=admin_keyboard())    
+    
+# -*-*- PREMIUM BOSHQARUV KLAVIATURASI -*-*-
+def premium_management_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="➕ Yangi Obuna"), KeyboardButton(text="⏱️ Obunani Uzaytirish")],
+            [KeyboardButton(text="❌ Obunani Bekor Qilish"), KeyboardButton(text="📊 Obuna Statistika")],
+            [KeyboardButton(text="🔙 Admin Panel")],
+        ],
+        resize_keyboard=True
+    )     
+    
+# -*-*- BLOKLASH KLAVIATURALARI -*-*-
+def block_duration_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="24 soat"), KeyboardButton(text="7 kun")],
+            [KeyboardButton(text="Noma'lum muddat"), KeyboardButton(text="🔙 Orqaga")],
+        ],
+        resize_keyboard=True
+    )
+
+def block_confirmation_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="✅ Bloklash"), KeyboardButton(text="❌ Bekor qilish")],
+        ],
+        resize_keyboard=True
+    )
+
+def unblock_confirmation_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="✅ Blokdan ochish"), KeyboardButton(text="❌ Bekor qilish")],
+        ],
+        resize_keyboard=True
+    )    
+
+# -*-*- KONTENT BOSHQARUV KLAVIATURASI -*-*-
+def content_management_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🎬 Kino Qo'shish"), KeyboardButton(text="📺 Serial Qo'shish")],
+            [KeyboardButton(text="📁 Kontentlar Ro'yxati"), KeyboardButton(text="❌ Kontent O'chirish")],
+            [KeyboardButton(text="🔙 Admin Panel")],
+        ],
+        resize_keyboard=True
+    )
+
+# -*-*- KINO KATEGORIYALARI KLAVIATURASI -*-*-
+def movie_categories_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🎭 Hollywood"), KeyboardButton(text="🎬 Hind")],
+            [KeyboardButton(text="🎥 Rus"), KeyboardButton(text="🎞️ O'zbek")],
+            [KeyboardButton(text="🕌 Islomiy"), KeyboardButton(text="🇹🇷 Turk")],
+            [KeyboardButton(text="👶 Bolalar"), KeyboardButton(text="🇰🇷 Koreys")],
+            [KeyboardButton(text="🔙 Orqaga")],
+        ],
+        resize_keyboard=True
+    )    
+    
+# -*-*- PREMIUM BOSHQARUV -*-*-
+@dp.message(F.text == "👑 Premium Boshqaruv")
+async def premium_management(message: types.Message, state: FSMContext):
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        await message.answer(
+            "👑 **Premium Boshqaruv Paneliga xush kelibsiz!**\n\n"
+            "Quyidagi amallarni bajarishingiz mumkin:\n"
+            "• ➕ Yangi obuna qo'shish\n"
+            "• ⏱️ Obunani uzaytirish\n"
+            "• ❌ Obunani bekor qilish\n"
+            "• 📊 Statistikalarni ko'rish\n\n"
+            "Foydalanuvchi ID sini yuboring:",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        await state.set_state(PremiumManagementState.waiting_user_id)
     else:
-        keyboard = [
-            ["🎬 Search movies", "📋 Categories"],
-            ["👤 Profile", "💼 Premium Services"],
-            ["🌐 Change language"]
-        ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        await message.answer("Sizga ruxsat yo'q!")
+        
+# ==============================================================================
+# -*-*- BLOK TEKSHIRUV FUNKSIYASI -*-*-
+# ==============================================================================
 
-def get_categories_menu():
-    """Kategoriyalar menyusi"""
-    keyboard = [
-        ["🎭 Hollywood Kinolari"],
-        ["🇮🇳 Hind Filmlari"],
-        ["🇷🇺 Rus Kinolari"],
-        ["🇺🇿 O'zbek Kinolari"],
-        ["🕌 Islomiy Kinolar"],
-        ["📺 Turk Seriallari"],
-        ["👶 Bolalar Kinolari"],
-        ["🐰 Bolalar Multfilmlari"],
-        ["🇰🇷 Koreys Kinolari"],
-        ["📺 Koreys Seriallari"],  # Bu yerda Koreys Seriallari mavjud
-        ["🎵 Musiqa"],
-        ["🔙 Asosiy menyu"]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+async def check_and_block(message: types.Message):
+    """Foydalanuvchi bloklanganligini tekshirish va xabar yuborish"""
+    if db.is_user_blocked(message.from_user.id):
+        block_info = db.get_blocked_user_info(message.from_user.id)
+        if block_info:
+            reason, duration, until, blocked_at, blocked_by = block_info
+            
+            # Muddatni o'qiladigan formatga o'tkazish
+            duration_display = {
+                "24_soat": "24 soat",
+                "7_kun": "7 kun", 
+                "Noma'lum": "Noma'lum muddat"
+            }.get(duration, duration)
+            
+            block_message = (
+                f"🚫 **KIRISH TA'QICHLANGAN!**\n\n"
+                f"Hurmatli foydalanuvchi, platforma qoidalariga amal qilinmaganligi "
+                f"sababli hisobingiz faoliyati vaqtincha bloklandi.\n\n"
+                f"📋 **Sabab:** {reason}\n"
+                f"⏰ **Muddati:** {duration_display}\n\n"
+                f"⚠️ **Ogohlantirishlar:**\n"
+                f"• Blokni chetlab o'tishga urinish — muddatni uzaytiradi\n"
+                f"• Administrator bilan hurmat bilan muloqot qiling\n"
+                f"• Yolg'on ma'lumot taqdim qilinishi blokni bekor qilmaydi\n\n"
+                f"Agar bu qaror bo'yicha e'tirozingiz bo'lsa, quyidagi manzil orqali administratorga yozing:\n\n"
+                f"📞 **Administrator:** @Operator_1985\n"
+                f"📝 Arizangiz ko'rib chiqiladi."
+            )
+            await message.answer(block_message)
+            return True
+    return False        
+    
+# ==============================================================================
+# -*-*- BLOKLASH HANDLERLARI -*-*-
+# ==============================================================================
 
-def get_language_menu():
-    keyboard = [
-        ["🇺🇿 O'zbek tili", "🇷🇺 Русский язык"],
-        ["🇺🇸 English"]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+@dp.message(F.text == "🚫 Bloklash")
+async def start_block_user(message: types.Message, state: FSMContext):
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        await message.answer(
+            "🚫 **Foydalanuvchini Bloklash**\n\n"
+            "Bloklamoqchi bo'lgan foydalanuvchi ID sini kiriting:",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        await state.set_state(BlockUserState.waiting_user_id)
+    else:
+        await message.answer("Sizga ruxsat yo'q!")
 
-# ==================== PULLIK HIZMATLAR MENU FUNKSIYALARI ====================
-def get_premium_menu():
-    keyboard = [
-        ["💰 Pullik Kinolar"],
-        ["📞 Adminga Xabar"],
-        ["👀 Javobni Ko'rish"],
-        ["🔙 Asosiy menyu"]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+@dp.message(BlockUserState.waiting_user_id)
+async def process_block_user_id(message: types.Message, state: FSMContext):
+    try:
+        user_id = int(message.text)
+        user_info = db.get_user(user_id)
+        
+        if user_info:
+            await state.update_data(user_id=user_id)
+            
+            # Foydalanuvchi bloklanganligini tekshirish
+            if db.is_user_blocked(user_id):
+                block_info = db.get_blocked_user_info(user_id)
+                if block_info:
+                    reason, duration, until, blocked_at, blocked_by = block_info
+                    await message.answer(
+                        f"⚠️ **Foydalanuvchi allaqachon bloklangan!**\n\n"
+                        f"👤 Foydalanuvchi: {user_info[2]}\n"
+                        f"🆔 ID: {user_id}\n"
+                        f"📋 Sabab: {reason}\n"
+                        f"⏰ Muddat: {duration}\n"
+                        f"📅 Bloklangan: {blocked_at}\n"
+                        f"👮 Bloklovchi: {blocked_by}",
+                        reply_markup=admin_advanced_keyboard()
+                    )
+                await state.clear()
+                return
+            
+            await state.update_data(user_name=user_info[2])
+            await message.answer(
+                f"👤 **Foydalanuvchi:** {user_info[2]}\n"
+                f"🆔 **ID:** {user_id}\n\n"
+                f"Bloklash sababini kiriting:",
+                reply_markup=ReplyKeyboardRemove()
+            )
+            await state.set_state(BlockUserState.waiting_reason)
+        else:
+            await message.answer("❌ Foydalanuvchi topilmadi!")
+            await state.clear()
+            
+    except ValueError:
+        await message.answer("❌ Noto'g'ri format! Faqat raqam kiriting:")
+        await state.clear()
 
-# ==================== YANGI: SODDA PULLIK HIZMATLAR MENYUSI ====================
-def get_premium_menu_simple():
-    """Soddalashtirilgan pullik hizmatlar menyusi"""
-    keyboard = [
-        ["📦 Barcha Pullik Kontentlar"],
-        ["ℹ️ Qo'llanma"],
-        ["🔙 Asosiy menyu"]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-def get_premium_content_categories():
-    """Pullik kontent kategoriyalari"""
-    keyboard = [
-        ["🎬 Pullik Kinolar", "📺 Pullik Seriallar"],
-        ["🐰 Pullik Multfilmlar", "🎵 Pullik Musiqalar"],
-        ["🔙 Orqaga"]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-# ==================== YANGI: BARCHA PULLIK KONTENTLARNI KO'RSATISH ====================
-async def show_all_premium_content(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Barcha pullik kontentlarni ko'rsatish"""
-    await update.message.reply_text(
-        "💰 *Barcha Pullik Kontentlar*\n\n"
-        "Qaysi turdagi pullik kontentlarni ko'rmoqchisiz?",
-        reply_markup=get_premium_content_categories(),
-        parse_mode='Markdown'
+@dp.message(BlockUserState.waiting_reason)
+async def process_block_reason(message: types.Message, state: FSMContext):
+    reason = message.text
+    await state.update_data(reason=reason)
+    
+    await message.answer(
+        "⏰ **Bloklash muddatini tanlang:**",
+        reply_markup=block_duration_keyboard()
     )
+    await state.set_state(BlockUserState.waiting_duration)
 
-# ==================== YANGI: PULLIK KONTENT KATEGORIYASINI KO'RSATISH ====================
-async def show_premium_content_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Pullik kontent kategoriyasini ko'rsatish"""
-    category_map = {
-        "🎬 Pullik Kinolar": "premium_movies",
-        "📺 Pullik Seriallar": "premium_series",
-        "🐰 Pullik Multfilmlar": "premium_cartoons", 
-        "🎵 Pullik Musiqalar": "premium_music"
+@dp.message(BlockUserState.waiting_duration)
+async def process_block_duration(message: types.Message, state: FSMContext):
+    if message.text == "🔙 Orqaga":
+        await message.answer("Bloklash sababini kiriting:", reply_markup=ReplyKeyboardRemove())
+        await state.set_state(BlockUserState.waiting_reason)
+        return
+        
+    duration_map = {
+        "24 soat": "24_soat",
+        "7 kun": "7_kun", 
+        "Noma'lum muddat": "Noma'lum"
     }
     
-    selected_category = update.message.text
-    premium_category = category_map.get(selected_category)
-    
-    if premium_category:
-        # Pullik kontentlarni olish
-        contents = db.get_premium_content_by_category("premium", premium_category)
+    duration_key = duration_map.get(message.text)
+    if duration_key:
+        await state.update_data(block_duration=duration_key, duration_display=message.text)
         
-        if contents:
-            content_list = "💰 *Pullik Kontentlar:*\n\n"
+        data = await state.get_data()
+        user_id = data['user_id']
+        user_name = data['user_name']
+        reason = data['reason']
+        
+        await message.answer(
+            f"⚠️ **BLOKLASHNI TASDIQLANG** ⚠️\n\n"
+            f"👤 **Foydalanuvchi:** {user_name}\n"
+            f"🆔 **ID:** {user_id}\n"
+            f"📋 **Sabab:** {reason}\n"
+            f"⏰ **Muddat:** {message.text}\n\n"
+            f"**Bu foydalanuvchi botdan butunlay bloklanadi!**",
+            reply_markup=block_confirmation_keyboard()
+        )
+        await state.set_state(BlockUserState.waiting_confirmation)
+    else:
+        await message.answer("❌ Noto'g'ri muddat! Quyidagilardan birini tanlang:")
+
+@dp.message(BlockUserState.waiting_confirmation)
+async def process_block_confirmation(message: types.Message, state: FSMContext):
+    if message.text == "✅ Bloklash":
+        data = await state.get_data()
+        user_id = data['user_id']
+        user_name = data['user_name']
+        reason = data['reason']
+        block_duration = data['block_duration']
+        duration_display = data['duration_display']
+        
+        # Foydalanuvchini bloklash
+        success = db.block_user(user_id, reason, block_duration, message.from_user.id)
+        
+        if success:
+            # Foydalanuvchiga xabar yuborish
+            try:
+                block_message = (
+                    f"🚫 **KIRISH TA'QICHLANGAN!**\n\n"
+                    f"Hurmatli foydalanuvchi, platforma qoidalariga amal qilinmaganligi "
+                    f"sababli hisobingiz faoliyati vaqtincha bloklandi.\n\n"
+                    f"📋 **Sabab:** {reason}\n"
+                    f"⏰ **Muddati:** {duration_display}\n\n"
+                    f"⚠️ **Ogohlantirishlar:**\n"
+                    f"• Blokni chetlab o'tishga urinish — muddatni uzaytiradi\n"
+                    f"• Administrator bilan hurmat bilan muloqot qiling\n"
+                    f"• Yolg'on ma'lumot taqdim qilinishi blokni bekor qilmaydi\n\n"
+                    f"Agar bu qaror bo'yicha e'tirozingiz bo'lsa, quyidagi manzil orqali administratorga yozing:\n\n"
+                    f"📞 **Administrator:** @Operator_1985\n"
+                    f"📝 Arizangiz ko'rib chiqiladi."
+                )
+                await bot.send_message(user_id, block_message)
+            except Exception as e:
+                print(f"Bloklangan foydalanuvchiga xabar yuborishda xatolik: {e}")
             
-            for content in contents[:10]:  # Faqat birinchi 10 tasi
-                content_list += f"🎬 {content[3]}\n💰 {content[5]:,} so'm\n\n"
-            
-            if len(contents) > 10:
-                content_list += f"... va yana {len(contents) - 10} ta kontent"
-            
-            await update.message.reply_text(
-                content_list + "\n\n⬇️ Kontentni tanlang va to'lov qiling:",
-                reply_markup=get_premium_content_selection_menu(contents),
-                parse_mode='Markdown'
+            await message.answer(
+                f"✅ **Foydalanuvchi muvaffaqiyatli bloklandi!**\n\n"
+                f"👤 Foydalanuvchi: {user_name}\n"
+                f"🆔 ID: {user_id}\n"
+                f"📋 Sabab: {reason}\n"
+                f"⏰ Muddat: {duration_display}\n\n"
+                f"Foydalanuvchiga blok haqida xabar yuborildi.",
+                reply_markup=admin_advanced_keyboard()
             )
         else:
-            await update.message.reply_text(
-                f"❌ Hozircha {selected_category} mavjud emas.\n\n"
-                "⏳ Tez orada qo'shiladi.",
-                reply_markup=get_premium_menu_simple()
+            await message.answer(
+                "❌ Bloklashda xatolik yuz berdi!",
+                reply_markup=admin_advanced_keyboard()
             )
+    else:
+        await message.answer(
+            "❌ Bloklash bekor qilindi.",
+            reply_markup=admin_advanced_keyboard()
+        )
+    
+    await state.clear()
 
-def get_premium_content_selection_menu(contents):
-    """Pullik kontentlarni tanlash menyusi"""
+# ==============================================================================
+# -*-*- BLOKDAN OCHISH HANDLERLARI -*-*-
+# ==============================================================================
+
+@dp.message(F.text == "✅ Blokdan ochish")
+async def start_unblock_user(message: types.Message, state: FSMContext):
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        await message.answer(
+            "✅ **Foydalanuvchini Blokdan Ochish**\n\n"
+            "Blokdan ochmoqchi bo'lgan foydalanuvchi ID sini kiriting:",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        await state.set_state(UnblockUserState.waiting_user_id)
+    else:
+        await message.answer("Sizga ruxsat yo'q!")
+
+@dp.message(UnblockUserState.waiting_user_id)
+async def process_unblock_user_id(message: types.Message, state: FSMContext):
+    try:
+        user_id = int(message.text)
+        user_info = db.get_user(user_id)
+        
+        if not user_info:
+            await message.answer("❌ Foydalanuvchi topilmadi!", reply_markup=admin_advanced_keyboard())
+            await state.clear()
+            return
+            
+        # Foydalanuvchi bloklanganligini tekshirish
+        if not db.is_user_blocked(user_id):
+            await message.answer(
+                f"ℹ️ **Foydalanuvchi bloklanmagan!**\n\n"
+                f"👤 Foydalanuvchi: {user_info[2]}\n"
+                f"🆔 ID: {user_id}",
+                reply_markup=admin_advanced_keyboard()
+            )
+            await state.clear()
+            return
+        
+        # Foydalanuvchini blokdan ochish
+        success = db.unblock_user(user_id)
+        
+        if success:
+            # Foydalanuvchiga xabar yuborish
+            try:
+                unblock_message = (
+                    f"🟢🔓 **Hisobingiz blokdan ochildi!**\n\n"
+                    f"Hurmatli foydalanuvchi, sizning profilingiz tekshiruvdan muvaffaqiyatli o'tdi "
+                    f"va barcha cheklovlar bekor qilindi.\n"
+                    f"Endi xizmatlardan bemalol va to'liq foydalanishingiz mumkin. ✅\n\n"
+                    f"⚠️ **Ogohlantirishlar**\n\n"
+                    f"Quyidagi qoidalarga rioya qilishingizni so'raymiz:\n\n"
+                    f"🚫 Qoidabuzarliklar takrorlansa, hisobingiz yana bloklanishi mumkin\n"
+                    f"🛡️ Xizmatdan tartibli va odobli foydalaning\n"
+                    f"📛 Spam, haqorat yoki reklama — qat'iyan taqiqlanadi\n"
+                    f"📌 Profilingiz xavfsizligi uchun shaxsiy ma'lumotlarni tarqatmang\n\n"
+                    f"❓ **Qo'shimcha savollar bo'lsa:**\n\n"
+                    f"📩 **Admin:** @Operator_1985"
+                )
+                await bot.send_message(user_id, unblock_message)
+            except Exception as e:
+                print(f"Xabar yuborishda xatolik: {e}")
+            
+            await message.answer(
+                f"✅ **Foydalanuvchi blokdan ochildi!**\n\n"
+                f"👤 Foydalanuvchi: {user_info[2]}\n"
+                f"🆔 ID: {user_id}\n\n"
+                f"Foydalanuvchiga blokdan ochilgani haqida xabar yuborildi.",
+                reply_markup=admin_advanced_keyboard()
+            )
+        else:
+            await message.answer("❌ Blokdan ochishda xatolik!", reply_markup=admin_advanced_keyboard())
+            
+    except ValueError:
+        await message.answer("❌ Noto'g'ri format! Faqat raqam kiriting:", reply_markup=admin_advanced_keyboard())
+    
+    await state.clear()    
+    
+# ==============================================================================
+# -*-*- YUKLAB OLISH HANDLERLARI -*-*-
+# ==============================================================================
+
+@dp.message(F.text == "📥 Yuklab olish")
+async def download_movie_handler(message: types.Message, state: FSMContext):
+    """Kino yuklab olish"""
+    # Blok tekshiruvi
+    if await check_and_block(message):
+        return
+    
+    # State dan kino ma'lumotlarini olish
+    data = await state.get_data()
+    movie_id = data.get('movie_id')
+    movie_title = data.get('movie_title', "Noma'lum")
+    
+    if not movie_id:
+        await message.answer("❌ Kino ma'lumotlari topilmadi. Qaytadan urinib ko'ring.")
+        return
+    
+    # Kino ma'lumotlarini olish
+    movie = db.get_movie_by_id(movie_id)
+    if not movie:
+        await message.answer("❌ Kino topilmadi.")
+        return
+    
+    movie_price = movie[5]  # price
+    
+    # FAQAT PULLIK KINOLARNI YUKLAB OLISH MUMKIN
+    if movie_price == 0:
+        await message.answer(
+            "❌ **Bepul kinolarni yuklab olish mumkin emas!**\n\n"
+            "Faqat sotib olingan pullik kinolarni yuklab olishingiz mumkin.\n\n"
+            "💡 **Maslahat:** Pullik kinoni sotib oling yoki Premium obunaga o'ting.",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard=[
+                    [KeyboardButton(text="💳 Kino sotib olish"), KeyboardButton(text="💎 Premium obuna")],
+                    [KeyboardButton(text="🔙 Orqaga")]
+                ],
+                resize_keyboard=True
+            )
+        )
+        return
+    
+    # Foydalanuvchi yuklab olish huquqiga ega ekanligini tekshirish
+    can_download = db.can_user_download(message.from_user.id, movie_id)
+    
+    if not can_download:
+        await message.answer(
+            "❌ **Yuklab olish huquqi yo'q!**\n\n"
+            "Yuklab olish uchun quyidagi shartlardan biri bajarilishi kerak:\n"
+            "• Kino sotib olingan bo'lishi\n"
+            "• Premium obuna faol bo'lishi\n\n"
+            "💡 **Maslahat:** Kino sotib oling yoki Premium obunaga o'ting.",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard=[
+                    [KeyboardButton(text="💳 Kino sotib olish"), KeyboardButton(text="💎 Premium obuna")],
+                    [KeyboardButton(text="🔙 Orqaga")]
+                ],
+                resize_keyboard=True
+            )
+        )
+        return
+    
+    movie_file_id = movie[4]  # file_id
+    
+    # Yuklab olish xabari
+    await message.answer(
+        f"📥 **Yuklab olish boshlandi...**\n\n"
+        f"🎬 **Kino:** {movie_title}\n"
+        f"💵 **Narxi:** {movie_price:,} so'm\n"
+        f"📊 **Hajmi:** ~500MB\n"
+        f"⏰ **Vaqt:** 1-2 daqiqa\n\n"
+        f"Video yuklanmoqda...",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    
+    # Video yuborish (yuklab olish)
+    try:
+        await message.answer_video(
+            video=movie_file_id,
+            caption=f"📥 **{movie_title}** - Yuklab olindi!\n\n"
+                   f"💵 **Narxi:** {movie_price:,} so'm\n"
+                   f"✅ **Holati:** Sotib olingan\n\n"
+                   f"Video saqlandi. Endi oflayn rejimda tomosha qilishingiz mumkin.",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard=[
+                    [KeyboardButton(text="🎬 Boshqa kinolar"), KeyboardButton(text="🔙 Asosiy Menyu")]
+                ],
+                resize_keyboard=True
+            )
+        )
+        
+        # Yuklab olishni log qilish
+        db.log_download(
+            user_id=message.from_user.id,
+            content_id=movie_id,
+            content_name=movie_title,
+            price=movie_price,
+            download_type="paid_download"
+        )
+        
+    except Exception as e:
+        await message.answer(
+            f"❌ **Yuklab olishda xatolik!**\n\n"
+            f"Xatolik: {e}\n\n"
+            f"Iltimos, keyinroq urinib ko'ring.",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard=[
+                    [KeyboardButton(text="🔙 Orqaga")]
+                ],
+                resize_keyboard=True
+            )
+        )
+
+@dp.message(F.text == "💳 Kino sotib olish")
+async def buy_for_download(message: types.Message, state: FSMContext):
+    """Yuklab olish uchun kino sotib olish"""
+    await start_payment(message, state)
+
+@dp.message(F.text == "💎 Premium obuna")
+async def premium_for_download(message: types.Message):
+    """Yuklab olish uchun premium obuna"""
+    await premium_subscription(message)
+        
+# ==============================================================================
+# -*-*- KONTENT BOSHQARUV HANDLERLARI -*-*-
+# ==============================================================================
+
+# -*-*- KONTENT QO'SHISH -*-*-
+@dp.message(F.text == "🎬 Kontent Qo'shish")
+async def content_management(message: types.Message):
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        await message.answer(
+            "🎬 **Kontent Boshqaruv Paneliga xush kelibsiz!**\n\n"
+            "Quyidagi amallarni bajarishingiz mumkin:\n"
+            "• 🎬 Kino qo'shish\n"
+            "• 📺 Serial qo'shish\n"
+            "• 📁 Kontentlar ro'yxati\n"
+            "• ❌ Kontent o'chirish\n\n"
+            "Amalni tanlang:",
+            reply_markup=content_management_keyboard()
+        )
+    else:
+        await message.answer("Sizga ruxsat yo'q!")        
+
+# -*-*- KINO QO'SHISH BOSHLASH -*-*-
+@dp.message(F.text == "🎬 Kino Qo'shish")
+async def start_add_movie(message: types.Message, state: FSMContext):
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        await message.answer(
+            "🎬 **Yangi Kino Qo'shish**\n\n"
+            "Kino nomini kiriting:",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        await state.set_state(ContentManagementState.waiting_movie_title)
+    else:
+        await message.answer("Sizga ruxsat yo'q!")
+
+# -*-*- KINO NOMI QABUL QILISH -*-*-
+@dp.message(ContentManagementState.waiting_movie_title)
+async def process_movie_title(message: types.Message, state: FSMContext):
+    await state.update_data(title=message.text)
+    await message.answer("📝 Kino tavsifini kiriting:")
+    await state.set_state(ContentManagementState.waiting_movie_description)
+
+# -*-*- KINO TAVSIFI QABUL QILISH -*-*-
+@dp.message(ContentManagementState.waiting_movie_description)
+async def process_movie_description(message: types.Message, state: FSMContext):
+    await state.update_data(description=message.text)
+    await message.answer(
+        "📁 Asosiy kategoriyani tanlang:",
+        reply_markup=get_category_keyboard("main")
+    )
+    await state.set_state(ContentManagementState.waiting_main_category)
+
+# -*-*- ASOSIY KATEGORIYA TANLASH -*-*-
+@dp.message(ContentManagementState.waiting_main_category)
+async def process_main_category(message: types.Message, state: FSMContext):
+    if message.text == "🔙 Asosiy Menyu":
+        await message.answer("Amalni tanlang:", reply_markup=content_management_keyboard())
+        await state.clear()
+        return
+        
+    await state.update_data(main_category=message.text)
+    await message.answer(
+        f"📁 **{message.text}** bo'limi uchun ichki kategoriyani tanlang:",
+        reply_markup=get_category_keyboard("sub", message.text)
+    )
+    await state.set_state(ContentManagementState.waiting_sub_category)
+
+# -*-*- ICHKI KATEGORIYA TANLASH -*-*-
+@dp.message(ContentManagementState.waiting_sub_category)
+async def process_sub_category(message: types.Message, state: FSMContext):
+    print(f"DEBUG: Ichki kategoriya tanlandi: '{message.text}'")
+    
+    if message.text == "🔙 Orqaga":
+        await message.answer("Asosiy kategoriyani tanlang:", reply_markup=get_category_keyboard("main"))
+        await state.set_state(ContentManagementState.waiting_main_category)
+        return
+        
+    # ICHKI KATEGORIYA = AKTYOR NOMI
+    await state.update_data(sub_category=message.text, actor=message.text)
+    
+    await message.answer(
+        "💵 Kino narxini kiriting (so'mda):\n0 - Bepul\n30000 - Yuklab olish uchun",
+        reply_markup=ReplyKeyboardRemove()  # Klaviaturani olib tashlaymiz
+    )
+    await state.set_state(ContentManagementState.waiting_movie_price)
+    
+# -*-*- KINO NARXI QABUL QILISH -*-*-
+@dp.message(ContentManagementState.waiting_movie_price)
+async def process_movie_price(message: types.Message, state: FSMContext):
+    print(f"DEBUG: Narx kiritildi: '{message.text}'")
+    
+    try:
+        price = int(message.text)
+        await state.update_data(price=price)
+        print(f"DEBUG: Narx saqlandi: {price}")
+        
+        # BU QATOR BANNER SO'RASH KERAK
+        await message.answer("🖼️ **Kino bannerini yuboring (rasm):**\n\nPoster yoki reklama rasmni yuboring:")
+        await state.set_state(ContentManagementState.waiting_movie_banner)  # <- BU HOLATGA O'TISH KERAK
+        
+    except ValueError:
+        await message.answer("❌ Noto'g'ri format! Faqat raqam kiriting:")
+        
+# ==============================================================================
+# -*-*- BLOKLASH HANDLERLARI -*-*-
+# ==============================================================================
+
+@dp.message(F.text == "🚫 Bloklash")
+async def start_block_user(message: types.Message, state: FSMContext):
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        await message.answer(
+            "🚫 **Foydalanuvchini Bloklash**\n\n"
+            "Bloklamoqchi bo'lgan foydalanuvchi ID sini kiriting:",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        await state.set_state(BlockUserState.waiting_user_id)
+    else:
+        await message.answer("Sizga ruxsat yo'q!")
+
+@dp.message(BlockUserState.waiting_user_id)
+async def process_block_user_id(message: types.Message, state: FSMContext):
+    try:
+        user_id = int(message.text)
+        user_info = db.get_user(user_id)
+        
+        if user_info:
+            await state.update_data(user_id=user_id)
+            
+            # Foydalanuvchi bloklanganligini tekshirish
+            if db.is_user_blocked(user_id):
+                block_info = db.get_blocked_user_info(user_id)
+                if block_info:
+                    reason, duration, until, blocked_at, blocked_by = block_info
+                    await message.answer(
+                        f"⚠️ **Foydalanuvchi allaqachon bloklangan!**\n\n"
+                        f"👤 Foydalanuvchi: {user_info[2]}\n"
+                        f"🆔 ID: {user_id}\n"
+                        f"📋 Sabab: {reason}\n"
+                        f"⏰ Muddat: {duration}\n"
+                        f"📅 Bloklangan: {blocked_at}\n"
+                        f"👮 Bloklovchi: {blocked_by}",
+                        reply_markup=admin_advanced_keyboard()
+                    )
+                await state.clear()
+                return
+            
+            await state.update_data(user_name=user_info[2])
+            await message.answer(
+                f"👤 **Foydalanuvchi:** {user_info[2]}\n"
+                f"🆔 **ID:** {user_id}\n\n"
+                f"Bloklash sababini kiriting:",
+                reply_markup=ReplyKeyboardRemove()
+            )
+            await state.set_state(BlockUserState.waiting_reason)
+        else:
+            await message.answer("❌ Foydalanuvchi topilmadi!")
+            await state.clear()
+            
+    except ValueError:
+        await message.answer("❌ Noto'g'ri format! Faqat raqam kiriting:")
+        await state.clear()
+
+@dp.message(BlockUserState.waiting_reason)
+async def process_block_reason(message: types.Message, state: FSMContext):
+    reason = message.text
+    await state.update_data(reason=reason)
+    
+    await message.answer(
+        "⏰ **Bloklash muddatini tanlang:**",
+        reply_markup=block_duration_keyboard()
+    )
+    await state.set_state(BlockUserState.waiting_duration)
+
+@dp.message(BlockUserState.waiting_duration)
+async def process_block_duration(message: types.Message, state: FSMContext):
+    if message.text == "🔙 Orqaga":
+        await message.answer("Bloklash sababini kiriting:", reply_markup=ReplyKeyboardRemove())
+        await state.set_state(BlockUserState.waiting_reason)
+        return
+        
+    duration_map = {
+        "24 soat": "24_soat",
+        "7 kun": "7_kun", 
+        "Noma'lum muddat": "Noma'lum"
+    }
+    
+    duration_key = duration_map.get(message.text)
+    if duration_key:
+        await state.update_data(block_duration=duration_key, duration_display=message.text)
+        
+        data = await state.get_data()
+        user_id = data['user_id']
+        user_name = data['user_name']
+        reason = data['reason']
+        
+        await message.answer(
+            f"⚠️ **BLOKLASHNI TASDIQLANG** ⚠️\n\n"
+            f"👤 **Foydalanuvchi:** {user_name}\n"
+            f"🆔 **ID:** {user_id}\n"
+            f"📋 **Sabab:** {reason}\n"
+            f"⏰ **Muddat:** {message.text}\n\n"
+            f"**Bu foydalanuvchi botdan butunlay bloklanadi!**",
+            reply_markup=block_confirmation_keyboard()
+        )
+        await state.set_state(BlockUserState.waiting_confirmation)
+    else:
+        await message.answer("❌ Noto'g'ri muddat! Quyidagilardan birini tanlang:")
+
+@dp.message(BlockUserState.waiting_confirmation)
+async def process_block_confirmation(message: types.Message, state: FSMContext):
+    if message.text == "✅ Bloklash":
+        data = await state.get_data()
+        user_id = data['user_id']
+        user_name = data['user_name']
+        reason = data['reason']
+        block_duration = data['block_duration']
+        duration_display = data['duration_display']
+        
+        # Foydalanuvchini bloklash
+        success = db.block_user(user_id, reason, block_duration, message.from_user.id)
+        
+        if success:
+            # Foydalanuvchiga xabar yuborish
+            try:
+                block_message = (
+                    f"🚫 **KIRISH TA'QICHLANGAN!**\n\n"
+                    f"Hurmatli foydalanuvchi, platforma qoidalariga amal qilinmaganligi "
+                    f"sababli hisobingiz faoliyati vaqtincha bloklandi.\n\n"
+                    f"📋 **Sabab:** {reason}\n"
+                    f"⏰ **Muddati:** {duration_display}\n\n"
+                    f"⚠️ **Ogohlantirishlar:**\n"
+                    f"• Blokni chetlab o'tishga urinish — muddatni uzaytiradi\n"
+                    f"• Administrator bilan hurmat bilan muloqot qiling\n"
+                    f"• Yolg'on ma'lumot taqdim qilinishi blokni bekor qilmaydi\n\n"
+                    f"Agar bu qaror bo'yicha e'tirozingiz bo'lsa, quyidagi manzil orqali administratorga yozing:\n\n"
+                    f"📞 **Administrator:** @Operator_1985\n"
+                    f"📝 Arizangiz ko'rib chiqiladi."
+                )
+                await bot.send_message(user_id, block_message)
+            except Exception as e:
+                print(f"Bloklangan foydalanuvchiga xabar yuborishda xatolik: {e}")
+            
+            await message.answer(
+                f"✅ **Foydalanuvchi muvaffaqiyatli bloklandi!**\n\n"
+                f"👤 Foydalanuvchi: {user_name}\n"
+                f"🆔 ID: {user_id}\n"
+                f"📋 Sabab: {reason}\n"
+                f"⏰ Muddat: {duration_display}\n\n"
+                f"Foydalanuvchiga blok haqida xabar yuborildi.",
+                reply_markup=admin_advanced_keyboard()
+            )
+        else:
+            await message.answer(
+                "❌ Bloklashda xatolik yuz berdi!",
+                reply_markup=admin_advanced_keyboard()
+            )
+    else:
+        await message.answer(
+            "❌ Bloklash bekor qilindi.",
+            reply_markup=admin_advanced_keyboard()
+        )
+    
+    await state.clear()
+
+# ==============================================================================
+# -*-*- BLOKDAN OCHISH HANDLERLARI -*-*-
+# ==============================================================================
+
+@dp.message(F.text == "✅ Blokdan ochish")
+async def start_unblock_user(message: types.Message, state: FSMContext):
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        await message.answer(
+            "✅ **Foydalanuvchini Blokdan Ochish**\n\n"
+            "Blokdan ochmoqchi bo'lgan foydalanuvchi ID sini kiriting:",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        await state.set_state(UnblockUserState.waiting_user_id)
+    else:
+        await message.answer("Sizga ruxsat yo'q!")
+
+@dp.message(UnblockUserState.waiting_user_id)
+async def process_unblock_user_id(message: types.Message, state: FSMContext):
+    try:
+        user_id = int(message.text)
+        user_info = db.get_user(user_id)
+        
+        if not user_info:
+            await message.answer("❌ Foydalanuvchi topilmadi!", reply_markup=admin_advanced_keyboard())
+            await state.clear()
+            return
+            
+        # Foydalanuvchi bloklanganligini tekshirish
+        if not db.is_user_blocked(user_id):
+            await message.answer(
+                f"ℹ️ **Foydalanuvchi bloklanmagan!**\n\n"
+                f"👤 Foydalanuvchi: {user_info[2]}\n"
+                f"🆔 ID: {user_id}",
+                reply_markup=admin_advanced_keyboard()
+            )
+            await state.clear()
+            return
+        
+        # Foydalanuvchini blokdan ochish
+        success = db.unblock_user(user_id)
+        
+        if success:
+            # Foydalanuvchiga xabar yuborish
+            try:
+                unblock_message = (
+                    f"🟢🔓 **Hisobingiz blokdan ochildi!**\n\n"
+                    f"Hurmatli foydalanuvchi, sizning profilingiz tekshiruvdan muvaffaqiyatli o'tdi "
+                    f"va barcha cheklovlar bekor qilindi.\n"
+                    f"Endi xizmatlardan bemalol va to'liq foydalanishingiz mumkin.\n\n"
+                    f"📞 **Admin:** @Operator_1985"
+                )
+                await bot.send_message(user_id, unblock_message)
+            except Exception as e:
+                print(f"Xabar yuborishda xatolik: {e}")
+            
+            await message.answer(
+                f"✅ **Foydalanuvchi blokdan ochildi!**\n\n"
+                f"👤 Foydalanuvchi: {user_info[2]}\n"
+                f"🆔 ID: {user_id}",
+                reply_markup=admin_advanced_keyboard()
+            )
+        else:
+            await message.answer("❌ Blokdan ochishda xatolik!", reply_markup=admin_advanced_keyboard())
+            
+    except ValueError:
+        await message.answer("❌ Noto'g'ri format! Faqat raqam kiriting:", reply_markup=admin_advanced_keyboard())
+    
+    await state.clear()
+
+@dp.message(F.text.in_(["✅ HA, blokdan ochish", "❌ BEKOR QILISH"]))
+async def process_unblock_confirmation(message: types.Message, state: FSMContext):
+    # Faqat state da ma'lumot bo'lsa ishlaydi
+    data = await state.get_data()
+    if not data:
+        await message.answer("Sessiya muddati o'tgan. Qaytadan boshlang.", reply_markup=admin_advanced_keyboard())
+        await state.clear()
+        return
+        
+    if message.text == "✅ HA, blokdan ochish":
+        user_id = data['user_id']
+        user_name = data['user_name']
+        
+        print(f"DEBUG: Blokdan ochish - User: {user_id}")  # DEBUG
+        
+        # Foydalanuvchini blokdan ochish
+        success = db.unblock_user(user_id)
+        
+        if success:
+            # Foydalanuvchiga xabar yuborish - YANGILANGAN XABAR
+            try:
+                unblock_message = (
+                    f"🟢🔓 **Hisobingiz blokdan ochildi!**\n\n"
+                    f"Hurmatli foydalanuvchi, sizning profilingiz tekshiruvdan muvaffaqiyatli o'tdi "
+                    f"va barcha cheklovlar bekor qilindi.\n"
+                    f"Endi xizmatlardan bemalol va to'liq foydalanishingiz mumkin. ✅\n\n"
+                    f"⚠️ **Ogohlantirishlar**\n\n"
+                    f"Quyidagi qoidalarga rioya qilishingizni so'raymiz:\n\n"
+                    f"🚫 Qoidabuzarliklar takrorlansa, hisobingiz yana bloklanishi mumkin\n"
+                    f"🛡️ Xizmatdan tartibli va odobli foydalaning\n"
+                    f"📛 Spam, haqorat yoki reklama — qat'iyan taqiqlanadi\n"
+                    f"📌 Profilingiz xavfsizligi uchun shaxsiy ma'lumotlarni tarqatmang\n\n"
+                    f"❓ **Qo'shimcha savollar bo'lsa:**\n\n"
+                    f"📩 **Admin:** @Operator_1985"
+                )
+                await bot.send_message(user_id, unblock_message)
+            except Exception as e:
+                print(f"Xabar yuborishda xatolik: {e}")
+            
+            await message.answer(
+                f"✅ **Foydalanuvchi blokdan ochildi!**\n\n"
+                f"👤 Foydalanuvchi: {user_name}\n"
+                f"🆔 ID: {user_id}\n\n"
+                f"Foydalanuvchiga blokdan ochilgani haqida xabar yuborildi.",
+                reply_markup=admin_advanced_keyboard()
+            )
+        else:
+            await message.answer("❌ Blokdan ochishda xatolik!", reply_markup=admin_advanced_keyboard())
+    else:
+        await message.answer("❌ Blokdan ochish bekor qilindi.", reply_markup=admin_advanced_keyboard())
+    
+    await state.clear()  
+
+# ==============================================================================
+# -*-*- BARCHA KONTENTLAR HANDLERI -*-*-
+# ==============================================================================
+
+@dp.message(F.text == "🎬 Barcha Kontentlar")
+async def all_content(message: types.Message):
+    """Barcha kontentlarni ko'rsatish"""
+    # Blok tekshiruvi
+    if await check_and_block(message):
+        return
+    
+    # Barcha kinolarni olish (bepullar birinchi)
+    movies = db.get_all_movies_sorted()
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha hech qanday kontent mavjud emas.",
+            reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
+        )
+        return
+    
+    # Kontentlarni guruhlash
+    free_movies = [m for m in movies if m[5] == 0]  # price = 0
+    paid_movies = [m for m in movies if m[5] > 0]   # price > 0
+    
+    # Klaviatura yaratish
     keyboard = []
     
-    for content in contents[:5]:  # Faqat birinchi 5 tasi
-        keyboard.append([f"💰 {content[3]}"])
+    # Bepul kinolar
+    for movie in free_movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
     
-    keyboard.append(["🔙 Orqaga", "🏠 Asosiy menyu"])
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-def get_admin_contact_menu():
-    keyboard = [
-        ["📝 Kontent so'rovi yuborish"],
-        ["💳 To'lov chekini yuborish"],
-        ["🔙 Orqaga"]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    keyboard.append([KeyboardButton(text="🔙 Asosiy Menyu")])
     
-# ==================== YANGI: SODDA PULLIK HIZMATLAR MENYUSI ====================
-def get_premium_menu_simple():
-    """Soddalashtirilgan pullik hizmatlar menyusi"""
-    keyboard = [
-        ["📦 Barcha Pullik Kontentlar"],
-        ["ℹ️ Qo'llanma"],
-        ["🔙 Asosiy menyu"]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-def get_premium_content_categories():
-    """Pullik kontent kategoriyalari"""
-    keyboard = [
-        ["🎬 Pullik Kinolar", "📺 Pullik Seriallar"],
-        ["🐰 Pullik Multfilmlar", "🎵 Pullik Musiqalar"],
-        ["🔙 Orqaga"]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-def get_payment_confirmation_menu():
-    """To'lov tasdiqlash menyusi"""
-    keyboard = [
-        ["💳 To'lov qilish", "📸 Chek yuborish"],
-        ["🔙 Orqaga", "🏠 Asosiy menyu"]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)    
-
-# ==================== HOLLYWOOD SUB-MENU FUNKSIYALARI ====================
-def get_hollywood_menu():
-    keyboard = [
-        ["🎬 Mel Gibson Kinolari"],
-        ["💪 Arnold Schwarzenegger Kinolari"],
-        ["🥊 Sylvester Stallone Kinolari"],
-        ["🚗 Jason Statham Kinolari"],
-        ["🐉 Jeki Chan Kinolari"],
-        ["🥋 Skod Adkins Kinolari"],
-        ["🎭 Denzil Washington Kinolari"],
-        ["💥 Jan Clod Van Dam Kinolari"],
-        ["👊 Brus Li Kinolari"],
-        ["😂 Jim Cerry Kinolari"],
-        ["🎩 Jonni Depp Kinolari"],
-        ["🌟 Boshqa Hollywood Kinolari"],
-        ["🔙 Kategoriyalar", "🏠 Asosiy menyu"]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-# ==================== HIND SUB-MENU FUNKSIYALARI ====================
-def get_hindi_menu():
-    keyboard = [
-        ["🤴 Shakruhkhan Kinolari"],
-        ["🎯 Amirkhan Kinolari"],
-        ["🦸 Akshay Kumar Kinolari"],
-        ["👑 Salmonkhan Kinolari"],
-        ["🌟 SayfAlihon Kinolari"],
-        ["🎭 Amitahbachchan Kinolari"],
-        ["💃 MethunChakraborty Kinolari"],
-        ["👨‍🦳 Dharmendra Kinolari"],
-        ["🎬 Raj Kapur Kinolari"],
-        ["📀 Boshqa Hind Kinolari"],
-        ["🔙 Kategoriyalar", "🏠 Asosiy menyu"]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-# ==================== RUS SUB-MENU FUNKSIYALARI ====================
-def get_russian_movies_menu():
-    keyboard = [
-        ["💘 Ishdagi Ishq"],
-        ["🎭 Shurikning Sarguzashtlari"],
-        ["🔄 Ivan Vasilivich"],
-        ["🔥 Gugurtga Ketib"],
-        ["🕵️ If Qalqasing Mahbuzi"],
-        ["👶 O'nta Neger Bolasi"],
-        ["⚔️ Qo'lga Tushmas Qasoskorlar"],
-        ["🎬 Barcha Rus Kinolari"],
-        ["🔙 Kategoriyalar", "🏠 Asosiy menyu"]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-# ==================== O'ZBEK SUB-MENU FUNKSIYALARI ====================
-def get_uzbek_movies_menu():
-    keyboard = [
-        ["🏘️ Mahallada Duv-Duv Gap"],
-        ["👰 Kelinlar Qo'zg'aloni"],
-        ["👨 Abdullajon"],
-        ["😊 Suyinchi"],
-        ["🌳 Chinor Ositidagi Duel"],
-        ["🙏 Yaratganga Shukur"],
-        ["💃 Yor-Yor"],
-        ["🎉 To'ylar Muborak"],
-        ["💣 Bomba"],
-        ["😜 Shum Bola"],
-        ["⚡ Temir Xotin"],
-        ["🎬 Barcha UZ Klassik Kinolari"],
-        ["🔙 Kategoriyalar", "🏠 Asosiy menyu"]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-# ==================== ISLOMIY SUB-MENU FUNKSIYALARI ====================
-def get_islamic_movies_menu():
-    keyboard = [
-        ["📿 Umar Ibn Ali Hattob To'liq"],
-        ["🌙 Olamga Nur Sochgan Oy To'liq"],
-        ["🎬 Barcha Islomiy Kinolar"],
-        ["📺 Barcha Islomiy Seriallar"],
-        ["🔙 Kategoriyalar", "🏠 Asosiy menyu"]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-# ==================== TURK SUB-MENU FUNKSIYALARI ====================
-def get_turkish_series_menu():
-    keyboard = [
-        ["👑 Sulton Abdulhamidhon"],
-        ["🐺 Qashqirlar Makoni"],
-        ["📺 Barcha Turk Seriallari"],
-        ["🔙 Kategoriyalar", "🏠 Asosiy menyu"]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-# ==================== BOLALAR SUB-MENU FUNKSIYALARI ====================
-def get_kids_movies_menu():
-    keyboard = [
-        ["👦 Bola Uyda Yolg'iz 1-3"],
-        ["✈️ Uchuvchi Devid"],
-        ["⚡ Garry Poter 1-4"],
-        ["🎬 Barcha Bolalar Kinolari"],
-        ["🔙 Kategoriyalar", "🏠 Asosiy menyu"]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-def get_cartoons_menu():
-    keyboard = [
-        ["❄️ Muzlik Davri 1-3"],
-        ["🐭 Tom & Jerry"],
-        ["🐻 Bori va Quyon"],
-        ["🍯 Ayiq va Masha"],
-        ["🐼 Kungfu Panda 1-4"],
-        ["🐎 Mustang"],
-        ["🎬 Barcha Multfilmlar"],
-        ["🔙 Kategoriyalar", "🏠 Asosiy menyu"]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-# ==================== KOREYS SUB-MENU FUNKSIYALARI ====================
-def get_korean_movies_menu():
-    keyboard = [
-        ["🏙️ Jinoyatchilar Shahri 1-4"],
-        ["🎬 Barcha Koreys Kinolari"],
-        ["🔙 Kategoriyalar", "🏠 Asosiy menyu"]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-def get_korean_series_menu():
-    """Koreys Seriallari menyusi - YANGILANGAN"""
-    keyboard = [
-        ["❄️ Qish Sonatasi 1-20"],
-        ["☀️ Yoz Ifori 1-20"],
-        ["🏦 Va Bank 1-20"],
-        ["👑 Jumong Barcha Qismlar"],
-        ["⚓ Dengiz Hukumdori Barcha Qismlar"],
-        ["💖 Qalbim Chechagi 1-17"],  # YANGI QO'SHILDI
-        ["📺 Barcha Koreys Seriallari"],
-        ["🔙 Kategoriyalar", "🏠 Asosiy menyu"]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-# ==================== MUSIQA SUB-MENU FUNKSIYALARI ====================
-def get_music_menu():
-    keyboard = [
-        ["🎵 O'zbek Musiqalari"],
-        ["🎶 Rus Musiqalari"],
-        ["🎼 Hind Musiqalari"],
-        ["🎧 Turk Musiqalari"],
-        ["🎤 Koreys Musiqalari"],
-        ["🎹 Barcha Musiqalar"],
-        ["🔙 Kategoriyalar", "🏠 Asosiy menyu"]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-# ==================== AVTOMATIK XABAR FUNKSIYALARI ====================
-async def send_daily_message(app, message_text):
-    """Barcha foydalanuvchilarga xabar yuborish"""
-    try:
-        users = db.get_all_users()
-        success_count = 0
-        fail_count = 0
-        
-        for user_id in users:
-            try:
-                await app.bot.send_message(chat_id=user_id, text=message_text)
-                success_count += 1
-            except Exception as e:
-                logging.error(f"Foydalanuvchi {user_id} ga xabar yuborishda xatolik: {e}")
-                fail_count += 1
-        
-        if ADMIN_ID:
-            report_text = (
-                f"📊 Kundalik xabar hisoboti:\n"
-                f"✅ Muvaffaqiyatli: {success_count}\n"
-                f"❌ Xatolik: {fail_count}\n"
-                f"👥 Jami: {len(users)}"
-            )
-            await app.bot.send_message(int(ADMIN_ID), report_text)
-            
-    except Exception as e:
-        logging.error(f"Kundalik xabar yuborishda xatolik: {e}")
-
-def setup_scheduler(app):
-    """Kundalik xabarlar uchun scheduler sozlash"""
-    scheduler = BackgroundScheduler()
-    timezone = pytz.timezone('Asia/Tashkent')
+    await message.answer(
+        f"🎬 **Barcha Kontentlar**\n\n"
+        f"🆓 **Bepul kinolar:** {len(free_movies)} ta\n"
+        f"💵 **Pullik kinolar:** {len(paid_movies)} ta\n"
+        f"📊 **Jami:** {len(movies)} ta kino\n\n"
+        f"Kerakli kinoni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )    
     
-    for msg in AUTOMATIC_MESSAGES:
-        hour, minute = msg['time'].split(':')
-        scheduler.add_job(
-            send_daily_message,
-            trigger=CronTrigger(hour=int(hour), minute=int(minute), timezone=timezone),
-            args=[app, msg['message']],
-            id=f"daily_message_{msg['time']}",
-            replace_existing=True
+# ==============================================================================
+# -*-*- QIDIRUV HANDLERLARI -*-*-
+# ==============================================================================
+
+@dp.message(F.text == "🔍 Qidiruv")
+async def search_handler(message: types.Message, state: FSMContext):
+    """Qidiruvni boshlash"""
+    # Blok tekshiruvi
+    if await check_and_block(message):
+        return
+    
+    await message.answer(
+        "🔍 **Qidiruv**\n\n"
+        "Kino, serial yoki multfilm nomini yozing:\n"
+        "Yoki aktyor nomini yozing:\n\n"
+        "💡 **Masalan:**\n"
+        "• Terminator\n"
+        "• Arnold\n"
+        "• Komediya\n"
+        "• Bolalar",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="🔙 Asosiy Menyu")]
+            ],
+            resize_keyboard=True
         )
-    
-    scheduler.start()
-    return scheduler
-
-# ==================== START VA RO'YXATDAN O'TISH HANDLERLARI ====================
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    
-    # Admin tekshirish
-    admin_panel = AdminPanel()
-    if await admin_panel.check_admin(user_id):
-        return await admin_start(update, context)
-    
-    # Oddiy foydalanuvchi uchun
-    existing_user = db.get_user(user_id)
-    
-    if existing_user:
-        # Ro'yxatdan o'tgan foydalanuvchi
-        lang = existing_user[4] if len(existing_user) > 4 else 'uz'
-        text = TEXTS[lang]
-        
-        await update.message.reply_text(
-            text['welcome'] + "\n\n" +
-            text['description'] + "\n\n" +
-            text['search'] + "\n\n" +
-            "👇 " + ("Quyidagi menyudan kerakli bo'limni tanlang:" if lang == 'uz' else 
-                    "Выберите нужный раздел из меню ниже:" if lang == 'ru' else 
-                    "Select the desired section from the menu below:"),
-            reply_markup=get_main_menu(lang)
-        )
-        return ConversationHandler.END
-    else:
-        # Yangi foydalanuvchi
-        await update.message.reply_text(
-            "🤗 Assalomu Aleykum Dunyo Kinosi Olamiga xush kelibsiz\n\n"
-            "🎬 Bu Bot Siz izlagan barcha Kino va Seriallarni o'z ichiga olgan\n\n"
-            "🔍 Sevimli Kino va Seriallaringizni va Multfilmlarni To'liq Nomi Yozib Qidiruv Bo'limi Orqali topshingiz mumkin\n\n"
-            "🌐 Tilni tanlang:",
-            reply_markup=get_language_menu()
-        )
-        return LANGUAGE
-
-# ==================== TILNI O'ZGARTIRISH ====================
-async def change_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Tilni o'zgartirish - ConversationHandlerga qaytish"""
-    # Foydalanuvchi ma'lumotlarini olish
-    user_id = update.effective_user.id
-    user_data = db.get_user(user_id)
-    
-    if user_data:
-        # Agar foydalanuvchi ro'yxatdan o'tgan bo'lsa, tilni yangilash
-        current_lang = user_data[4] if len(user_data) > 4 else 'uz'
-        
-        # Til menyusini joriy tilga qarab ko'rsatish
-        if current_lang == 'uz':
-            text = "🌐 Tilni tanlang:"
-        elif current_lang == 'ru':
-            text = "🌐 Выберите язык:"
-        else:
-            text = "🌐 Choose language:"
-        
-        await update.message.reply_text(
-            text,
-            reply_markup=get_language_menu()
-        )
-        
-        # Conversation state ga qaytish
-        context.user_data['changing_language'] = True
-        return LANGUAGE
-    else:
-        # Agar foydalanuvchi ro'yxatdan o'tmagan bo'lsa
-        lang = context.user_data.get('language', 'uz')
-        text = TEXTS[lang]
-        
-        await update.message.reply_text(
-            text['choose_language'],
-            reply_markup=get_language_menu()
-        )
-        return LANGUAGE
-
-async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['name'] = update.message.text
-    lang = context.user_data.get('language', 'uz')
-    text = TEXTS[lang]
-    
-    contact_button = KeyboardButton("📞 Telefon raqamini yuborish", request_contact=True)
-    
-    # Tilga qarab kontakt tugma matnini o'zgartirish
-    if lang == 'ru':
-        contact_button = KeyboardButton("📞 Отправить номер телефона", request_contact=True)
-    elif lang == 'en':
-        contact_button = KeyboardButton("📞 Send phone number", request_contact=True)
-    
-    keyboard = [[contact_button]]
-    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-    
-    await update.message.reply_text(
-        text['enter_phone'],
-        reply_markup=reply_markup
     )
-    return PHONE
+    await state.set_state(SearchState.waiting_search_query)
 
-async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.contact:
-        phone = update.message.contact.phone_number
-    else:
-        phone = update.message.text
+@dp.message(SearchState.waiting_search_query)
+async def process_search(message: types.Message, state: FSMContext):
+    """Qidiruv natijalarini ko'rsatish"""
+    # Blok tekshiruvi
+    if await check_and_block(message):
+        await state.clear()
+        return
     
-    user = update.effective_user
-    name = context.user_data['name']
-    lang = context.user_data.get('language', 'uz')
+    search_query = message.text.strip()
     
-    # Foydalanuvchini bazaga qo'shish
-    db.add_user(user.id, user.username, name, phone)
-    
-    text = TEXTS[lang]
-    
-    # Agar til o'zgartirish jarayonida bo'lsa
-    if context.user_data.get('changing_language'):
-        await update.message.reply_text(
-            "✅ " + ("Til muvaffaqiyatli o'zgartirildi!" if lang == 'uz' else 
-                    "Язык успешно изменен!" if lang == 'ru' else 
-                    "Language successfully changed!"),
-            reply_markup=get_main_menu(lang)
+    # Agar "Asosiy Menyu" bosilsa
+    if search_query == "🔙 Asosiy Menyu":
+        await message.answer(
+            "Asosiy menyuga qaytingiz:",
+            reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
         )
-        del context.user_data['changing_language']
-    else:
-        # Yangi ro'yxatdan o'tish
-        await update.message.reply_text(
-            text['success_register'] + "\n\n" +
-            "🎬 " + ("Endi kinolar olamidan bahramand bo'lishingiz mumkin!" if lang == 'uz' else 
-                    "Теперь вы можете наслаждаться миром кино!" if lang == 'ru' else 
-                    "Now you can enjoy the world of cinema!"),
-            reply_markup=get_main_menu(lang)
-        )
+        await state.clear()
+        return
     
-    if ADMIN_ID:
+    # Qidiruv so'rovi qisqa bo'lsa
+    if len(search_query) < 2:
+        await message.answer(
+            "❌ Qidiruv so'rovi juda qisqa! Kamida 2 ta belgi kiriting.",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard=[
+                    [KeyboardButton(text="🔙 Asosiy Menyu")]
+                ],
+                resize_keyboard=True
+            )
+        )
+        return
+    
+    # Loading xabari
+    search_msg = await message.answer("🔍 **Qidirilmoqda...**")
+    
+    # Kinolarni qidirish
+    movies = db.search_movies(search_query)
+    
+    await search_msg.delete()
+    
+    if not movies:
+        await message.answer(
+            f"❌ **'{search_query}' bo'yicha hech narsa topilmadi**\n\n"
+            f"Qidiruv bo'yicha maslahatlar:\n"
+            f"• Kino nomini to'g'ri yozganingizni tekshiring\n"
+            f"• Qisqaroq so'z yozib ko'ring\n"
+            f"• Boshqa tilarda yozib ko'ring\n"
+            f"• Aktyor nomini yozing",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard=[
+                    [KeyboardButton(text="🔍 Qayta qidirish"), KeyboardButton(text="🔙 Asosiy Menyu")]
+                ],
+                resize_keyboard=True
+            )
+        )
+        return
+    
+    # Kontentlarni guruhlash
+    free_movies = [m for m in movies if m[5] == 0]  # price = 0
+    paid_movies = [m for m in movies if m[5] > 0]   # price > 0
+    
+    # Klaviatura yaratish
+    keyboard = []
+    
+    # Bepul kinolar
+    for movie in free_movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    # Pullik kinolar
+    for movie in paid_movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+        button_text = f"💵 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔍 Qayta qidirish"), KeyboardButton(text="🔙 Asosiy Menyu")])
+    
+    await message.answer(
+        f"🔍 **Qidiruv natijalari: '{search_query}'**\n\n"
+        f"🆓 **Bepul kinolar:** {len(free_movies)} ta\n"
+        f"💵 **Pullik kinolar:** {len(paid_movies)} ta\n"
+        f"📊 **Jami topilgan:** {len(movies)} ta\n\n"
+        f"Kerakli kinoni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+    
+    await state.clear()
+
+@dp.message(F.text == "🔍 Qayta qidirish")
+async def search_again(message: types.Message, state: FSMContext):
+    """Qayta qidirish"""
+    await search_handler(message, state)    
+        
+# ==============================================================================
+# -*-*- KONTENT BANNERI YUBORISH (EMERGENCY FIX) -*-*-
+# ==============================================================================
+async def send_content_banner(message: types.Message, movie, user_id):
+    """Kontent bannerini yuborish"""
+    try:
+        # 11 TA USTUNNI OLISH
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+        
+        print(f"🚨 EMERGENCY DEBUG: Kino: {title}, Narx: {price}, User: {user_id}")
+        
+        # Foydalanuvchi holatini TEKSHRISH
+        user_has_purchased = db.check_user_purchase(user_id, movie_id)
+        is_premium_user = db.check_premium_status(user_id)
+        can_download = db.can_user_download(user_id, movie_id)  # <- YANGI
+        
+        print(f"🚨 EMERGENCY DEBUG: Sotib olgan: {user_has_purchased}, Premium: {is_premium_user}, Yuklab olish: {can_download}")
+        
+        # Banner matni
+        caption = (
+            f"🎬 **{title}**\n\n"
+            f"📝 {description}\n\n"
+            f"🎭 **Aktyor:** {actor_name}\n"
+            f"📁 **Kategoriya:** {category}\n"
+            f"💵 **Narxi:** {price:,} so'm\n"
+            f"📊 **Sifat:** HD 1080p\n\n"
+        )
+        
+        # HOLATNI ANIQLASH
+        can_watch = False
+        download_button = None
+        
+        if price == 0:
+            caption += "🆓 **Bepul kontent** - Darrov ko'rashingiz mumkin!"
+            can_watch = True
+            # Bepul kinolar uchun YUKLAB OLISH TUGMASI YO'Q
+        elif user_has_purchased:
+            caption += "✅ **Sotib olingan** - Darrov ko'rashingiz mumkin!"
+            can_watch = True
+            download_button = KeyboardButton(text="📥 Yuklab olish")  # Sotib olingan uchun yuklab olish
+        elif is_premium_user:
+            caption += "👑 **Premium** - Darrov ko'rashingiz mumkin!"
+            can_watch = True
+            download_button = KeyboardButton(text="📥 Yuklab olish")  # Premium uchun yuklab olish
+        else:
+            caption += "🔒 **Pullik kontent** - Yuklab olish uchun to'lov qiling"
+            can_watch = False
+            download_button = KeyboardButton(text="💳 Yuklab olish uchun to'lash")
+        
+        print(f"🚨 EMERGENCY DEBUG: Ko'rish ruxsati: {can_watch}, Yuklab olish: {can_download}")
+        
+        # 1. ALOHIDA BANNER RASMI YUBORISH
+        if banner_file_id:
+            await message.answer_photo(
+                photo=banner_file_id,
+                caption=caption
+            )
+        
+        # 2. VIDEO YUBORISH - FAQAT CAN_WATCH = TRUE BO'LSA
+        if can_watch:
+            print(f"🚨 EMERGENCY DEBUG: TO'LIQ VIDEO YUBORILMOQDA")
+            
+            # Klaviatura yaratish
+            keyboard_buttons = []
+            
+            # FAQAT PULLIK KINOLAR UCHUN YUKLAB OLISH TUGMASI
+            if price > 0 and download_button:
+                keyboard_buttons.append([download_button])
+            
+            keyboard_buttons.append([KeyboardButton(text="🔙 Orqaga")])
+            
+            # Video yuborish
+            await message.answer_video(
+                video=file_id,
+                caption="🎬 **Video** - Play tugmasini bosing va tomosha qiling!",
+                reply_markup=ReplyKeyboardMarkup(
+                    keyboard=keyboard_buttons,
+                    resize_keyboard=True
+                )
+            )
+        else:
+            print(f"🚨 EMERGENCY DEBUG: FAQAT PREVIEW YUBORILMOQDA")
+            # Pullik kontent - FAQAT XABAR, VIDEO EMAS!
+            await message.answer(
+                "🔒 **PULLIK KONTENT**\n\n"
+                "Bu kino pullik! To'liq ko'rish uchun quyidagi tugma orqali to'lov qiling:",
+                reply_markup=ReplyKeyboardMarkup(
+                    keyboard=[
+                        [KeyboardButton(text="💳 Yuklab olish uchun to'lash")],
+                        [KeyboardButton(text="🔙 Orqaga")],
+                    ],
+                    resize_keyboard=True
+                )
+            )
+        
+        print(f"🚨 EMERGENCY DEBUG: Jarayon tugadi")
+        
+    except Exception as e:
+        print(f"🚨 EMERGENCY DEBUG: Xatolik: {e}")
+        await message.answer(f"❌ Xatolik: {e}")
+        
+# -*-*- KINO BANNERI QABUL QILISH -*-*-
+@dp.message(ContentManagementState.waiting_movie_banner, F.photo)
+async def process_movie_banner(message: types.Message, state: FSMContext):
+    banner_file_id = message.photo[-1].file_id
+    await state.update_data(banner_file_id=banner_file_id)
+    await message.answer("📁 **Kino faylini yuboring (video):**")
+    await state.set_state(ContentManagementState.waiting_movie_file)        
+        
+# -*-*- KINO FAYLI QABUL QILISH -*-*-
+@dp.message(ContentManagementState.waiting_movie_file, F.video)
+async def process_movie_file(message: types.Message, state: FSMContext):
+    global last_movie_processing_time
+    
+    current_time = time.time()
+    if current_time - last_movie_processing_time < 5:
+        return
+    last_movie_processing_time = current_time
+    
+    data = await state.get_data()
+    if not data:
+        await message.answer("❌ Ma'lumotlar topilmadi.", reply_markup=admin_advanced_keyboard())
+        return
+    
+    required_fields = ['title', 'description', 'main_category', 'sub_category', 'actor', 'price', 'banner_file_id']
+    for field in required_fields:
+        if field not in data:
+            await message.answer(f"❌ {field} maydoni topilmadi.", reply_markup=admin_advanced_keyboard())
+            await state.clear()
+            return
+    
+    full_category = f"{data['main_category']} - {data['sub_category']}"
+    
+    # Kino qo'shish (banner bilan)
+    movie_id = db.add_movie(
+        title=data['title'],
+        description=data['description'],
+        category=full_category,
+        file_id=message.video.file_id,
+        price=data['price'],
+        is_premium=(data['price'] > 0),
+        added_by=message.from_user.id,
+        actor_name=data['actor'],
+        banner_file_id=data['banner_file_id']  # <- BANNER QO'SHILDI
+    )
+    
+    await state.clear()
+    
+    await message.answer(
+        f"✅ **Kino Muvaffaqiyatli Qo'shildi!**\n\n"
+        f"🎬 Nomi: {data['title']}\n"
+        f"🎭 Aktyor: {data['actor']}\n"
+        f"📁 Kategoriya: {full_category}\n"
+        f"💵 Narxi: {data['price']} so'm\n"
+        f"🖼️ Banner: ✅\n"
+        f"🔓 Holati: {'Pullik' if data['price'] > 0 else 'Bepul'}\n"
+        f"🆔 ID: {movie_id}",
+        reply_markup=admin_advanced_keyboard()
+    )
+
+# -*-*- KONTENTLAR RO'YXATI -*-*-
+@dp.message(F.text == "📁 Kontentlar Boshqaruvi")
+async def content_list_management(message: types.Message):
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        await message.answer(
+            "📁 **Kontentlar Boshqaruvi**\n\n"
+            "Bu yerda barcha kontentlarni ko'rishingiz va boshqarishingiz mumkin:",
+            reply_markup=content_management_keyboard()
+        )
+    else:
+        await message.answer("Sizga ruxsat yo'q!")        
+
+# -*-*- FOYDALANUVCHI ID QABUL QILISH -*-*-
+@dp.message(PremiumManagementState.waiting_user_id)
+async def process_user_id(message: types.Message, state: FSMContext):
+    try:
+        user_id = int(message.text)
+        user_info = db.get_user(user_id)
+        
+        if user_info:
+            await state.update_data(user_id=user_id)
+            
+            # Foydalanuvchi ma'lumotlari
+            user_name = user_info[2] if user_info[2] else "Noma'lum"
+            is_premium = db.check_premium_status(user_id)
+            
+            premium_status = "✅ Faol" if is_premium else "❌ Faol emas"
+            
+            await message.answer(
+                f"👤 **Foydalanuvchi Ma'lumotlari:**\n"
+                f"🆔 ID: {user_id}\n"
+                f"📛 Ism: {user_name}\n"
+                f"💎 Premium: {premium_status}\n\n"
+                f"Quyidagi amallardan birini tanlang:",
+                reply_markup=premium_management_keyboard()
+            )
+            await state.set_state(PremiumManagementState.waiting_action)
+        else:
+            await message.answer(
+                "❌ Foydalanuvchi topilmadi! ID ni tekshirib qayta kiriting:",
+                reply_markup=admin_keyboard()
+            )
+            await state.clear()
+            
+    except ValueError:
+        await message.answer(
+            "❌ Noto'g'ri format! Faqat raqam kiriting:",
+            reply_markup=admin_keyboard()
+        )
+        await state.clear()
+
+# -*-*- AMAL TANLASH -*-*-
+@dp.message(PremiumManagementState.waiting_action)
+async def process_action(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    user_id = data['user_id']
+    
+    if message.text == "➕ Yangi Obuna":
+        await message.answer(
+            "Obuna muddatini kiriting (kunlarda):\n"
+            "Masalan: 30 (1 oy)",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        await state.set_state(PremiumManagementState.waiting_duration)
+        
+    elif message.text == "⏱️ Obunani Uzaytirish":
+        if db.check_premium_status(user_id):
+            await message.answer(
+                "Qancha kun uzaytirmoqchisiz?",
+                reply_markup=ReplyKeyboardRemove()
+            )
+            await state.set_state(PremiumManagementState.waiting_duration)
+        else:
+            await message.answer(
+                "❌ Bu foydalanuvchida premium obuna mavjud emas!",
+                reply_markup=premium_management_keyboard()
+            )
+            
+    elif message.text == "❌ Obunani Bekor Qilish":
+        if db.check_premium_status(user_id):
+            await message.answer(
+                "⚠️ **Obunani bekor qilish**\n\n"
+                "Haqiqatan ham bu foydalanuvchining premium obunasini bekor qilmoqchimisiz?\n\n"
+                "✅ Ha - obuna bekor qilinadi\n"
+                "❌ Yo'q - bekor qilish",
+                reply_markup=ReplyKeyboardMarkup(
+                    keyboard=[
+                        [KeyboardButton(text="✅ Ha"), KeyboardButton(text="❌ Yo'q")]
+                    ],
+                    resize_keyboard=True
+                )
+            )
+            await state.set_state(PremiumManagementState.waiting_confirmation)
+        else:
+            await message.answer(
+                "❌ Bu foydalanuvchida premium obuna mavjud emas!",
+                reply_markup=premium_management_keyboard()
+            )
+            
+    elif message.text == "📊 Obuna Statistika":
+        stats = db.get_premium_stats()
+        user_info = db.get_user(user_id)
+        user_name = user_info[2] if user_info[2] else "Noma'lum"
+        
+        await message.answer(
+            f"📊 **Obuna Statistika:**\n\n"
+            f"👤 Foydalanuvchi: {user_name}\n"
+            f"🆔 ID: {user_id}\n"
+            f"💎 Status: {'Premium' if db.check_premium_status(user_id) else 'Oddiy'}\n\n"
+            f"📈 Umumiy statistika:\n"
+            f"• Premium a'zolar: {stats['premium_users']} ta\n"
+            f"• Oylik daromad: {stats['monthly_income']:,} so'm",
+            reply_markup=premium_management_keyboard()
+        )
+        
+    elif message.text == "🔙 Admin Panel":
+        await message.answer(
+            "Admin panelga qaytingiz:",
+            reply_markup=admin_keyboard()
+        )
+        await state.clear()
+
+# -*-*- OBUNA MUDDATI QABUL QILISH -*-*-
+@dp.message(PremiumManagementState.waiting_duration)
+async def process_duration(message: types.Message, state: FSMContext):
+    try:
+        duration = int(message.text)
+        data = await state.get_data()
+        user_id = data['user_id']
+        user_info = db.get_user(user_id)
+        user_name = user_info[2] if user_info[2] else "Noma'lum"
+        
+        # Premium obunani qo'shish
+        db.add_premium_subscription(user_id, duration)
+        
+        await message.answer(
+            f"✅ **Premium Obuna Muvaffaqiyatli Qo'shildi!**\n\n"
+            f"👤 Foydalanuvchi: {user_name}\n"
+            f"🆔 ID: {user_id}\n"
+            f"⏱️ Muddat: {duration} kun\n"
+            f"📅 Tugash sanasi: {duration} kundan keyin\n\n"
+            f"Foydalanuvchiga xabar yuborildi.",
+            reply_markup=admin_keyboard()
+        )
+        
+        # Foydalanuvchiga bildirishnoma yuborish
         try:
-            await context.bot.send_message(
-                int(ADMIN_ID),
-                "🆕 Yangi foydalanuvchi:\n" +
-                "👤 Ism: " + name + "\n" +
-                "📞 Tel: " + phone + "\n" +
-                "🆔 ID: " + str(user.id) +
-                "\n🌐 Til: " + lang
+            await bot.send_message(
+                user_id,
+                f"🎉 **Tabriklaymiz!**\n\n"
+                f"Sizga premium obuna berildi!\n"
+                f"⏱️ Muddat: {duration} kun\n"
+                f"💎 Endi barcha kontentlardan foydalanishingiz mumkin!"
             )
-        except Exception as e:
-            logging.error(f"Adminga xabar yuborishda xatolik: {e}")
+        except:
+            print(f"Foydalanuvchi {user_id} ga xabar yuborishda xatolik")
+            
+        await state.clear()
+        
+    except ValueError:
+        await message.answer(
+            "❌ Noto'g'ri format! Faqat raqam kiriting:"
+        )
+
+# -*-*- TASDIQLASH -*-*-
+@dp.message(PremiumManagementState.waiting_confirmation)
+async def process_confirmation(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    user_id = data['user_id']
+    user_info = db.get_user(user_id)
+    user_name = user_info[2] if user_info[2] else "Noma'lum"
     
-    return ConversationHandler.END
-
-# ==================== KATEGORIYA HANDLERLARI ====================
-async def show_categories(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "📋 Kategoriyalar:\nIltimos kerakli kategoriyani tanlang:",
-        reply_markup=get_categories_menu()
-    )
-
-async def show_hollywood(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🎭 Hollywood Kinolari:\nIltimos aktyor tanlang:",
-        reply_markup=get_hollywood_menu()
-    )
-
-async def show_hindi(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🇮🇳 Hind Filmlari:\nIltimos aktyor tanlang:",
-        reply_markup=get_hindi_menu()
-    )
-
-async def show_russian_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🇷🇺 Rus Kinolari:\nIltimos film tanlang:",
-        reply_markup=get_russian_movies_menu()
-    )
-
-async def show_uzbek_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🇺🇿 O'zbek Kinolari:\nIltimos film tanlang:",
-        reply_markup=get_uzbek_movies_menu()
-    )
-
-async def show_islamic_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🕌 Islomiy Kinolar:\nIltimos kategoriya tanlang:",
-        reply_markup=get_islamic_movies_menu()
-    )
-
-async def show_turkish_series(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "📺 Turk Seriallari:\nIltimos serial tanlang:",
-        reply_markup=get_turkish_series_menu()
-    )
-
-async def show_kids_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "👶 Bolalar Kinolari:\nIltimos film tanlang:",
-        reply_markup=get_kids_movies_menu()
-    )
-
-async def show_cartoons(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🐰 Bolalar Multfilmlari:\nIltimos multfilm tanlang:",
-        reply_markup=get_cartoons_menu()
-    )
-
-async def show_korean_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🇰🇷 Koreys Kinolari:\nIltimos film tanlang:",
-        reply_markup=get_korean_movies_menu()
-    )
-
-async def show_korean_series(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "📺 Koreys Seriallari:\nIltimos serial tanlang:",
-        reply_markup=get_korean_series_menu()
-    )
-
-async def show_music(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🎵 Musiqa:\nIltimos musiqa turini tanlang:",
-        reply_markup=get_music_menu()
-    )
-
-# ==================== ORQAGA QAYTISH HANDLERLARI ====================
-async def back_to_categories(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "📋 Kategoriyalar:",
-        reply_markup=get_categories_menu()
-    )
-
-async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    admin_panel = AdminPanel()
+    if message.text == "✅ Ha":
+        # Premium obunani bekor qilish
+        # Bu yerda database funksiyasi kerak
+        await message.answer(
+            f"✅ **Premium Obuna Bekor Qilindi!**\n\n"
+            f"👤 Foydalanuvchi: {user_name}\n"
+            f"🆔 ID: {user_id}\n"
+            f"💎 Status: Oddiy foydalanuvchi\n\n"
+            f"Foydalanuvchiga xabar yuborildi.",
+            reply_markup=admin_keyboard()
+        )
+        
+        # Foydalanuvchiga bildirishnoma yuborish
+        try:
+            await bot.send_message(
+                user_id,
+                f"ℹ️ **Ogohlik!**\n\n"
+                f"Sizning premium obunangiz bekor qilindi.\n"
+                f"Premium xizmatlardan foydalana olmaysiz."
+            )
+        except:
+            print(f"Foydalanuvchi {user_id} ga xabar yuborishda xatolik")
+            
+    else:
+        await message.answer(
+            "❌ Amal bekor qilindi.",
+            reply_markup=premium_management_keyboard()
+        )
+        await state.set_state(PremiumManagementState.waiting_action)
     
-    if await admin_panel.check_admin(user_id):
-        await update.message.reply_text(
-            "👨‍💻 Admin panelga qaytdingiz:",
-            reply_markup=admin_panel.get_admin_main_menu()
+    await state.clear()    
+
+# -*-*- PULLIK HIZMATLAR KLAVIATURASI -*-*-
+def premium_services_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="💎 Premium Obuna"), KeyboardButton(text="🎯 Maxsus Kontentlar")],
+            [KeyboardButton(text="📥 Yuklab Olish"), KeyboardButton(text="🔧 Shaxsiy Qo'llab-quvvatlash")],
+            [KeyboardButton(text="💳 To'lov qilish"), KeyboardButton(text="📋 To'lov Qo'llanmasi")],
+            [KeyboardButton(text="🔍 Obunani tekshirish"), KeyboardButton(text="📞 Admin bilan bog'lanish")],
+            [KeyboardButton(text="🔙 Asosiy Menyu")],
+        ],
+        resize_keyboard=True
+    )
+
+# -*-*- TO'LOV KLAVIATURASI -*-*-
+def payment_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="💳 Karta orqali to'lash"), KeyboardButton(text="📱 Click orqali to'lash")],
+            [KeyboardButton(text="🔙 Pullik Hizmatlarga qaytish")],
+        ],
+        resize_keyboard=True
+    )
+
+# ==============================================================================
+# -*-*- START VA RO'YXATDAN O'TISH HANDLERLARI -*-*-
+# ==============================================================================
+
+@dp.message(CommandStart())
+async def start_command(message: types.Message, state: FSMContext):
+    # Bloklanganligini tekshirish
+    if db.is_user_blocked(message.from_user.id):
+        block_info = db.get_blocked_user_info(message.from_user.id)
+        if block_info:
+            reason, duration, until, blocked_at, blocked_by = block_info
+            
+            # Muddatni o'qiladigan formatga o'tkazish
+            duration_display = {
+                "24_soat": "24 soat",
+                "7_kun": "7 kun", 
+                "Noma'lum": "Noma'lum muddat"
+            }.get(duration, duration)
+            
+            block_message = (
+                f"🚫 **KIRISH TA'QICHLANGAN!**\n\n"
+                f"Hurmatli foydalanuvchi, platforma qoidalariga amal qilinmaganligi "
+                f"sababli hisobingiz faoliyati vaqtincha bloklandi.\n\n"
+                f"📋 **Sabab:** {reason}\n"
+                f"⏰ **Muddati:** {duration_display}\n\n"
+                f"⚠️ **Ogohlantirishlar:**\n"
+                f"• Blokni chetlab o'tishga urinish — muddatni uzaytiradi\n"
+                f"• Administrator bilan hurmat bilan muloqot qiling\n"
+                f"• Yolg'on ma'lumot taqdim qilinishi blokni bekor qilmaydi\n\n"
+                f"Agar bu qaror bo'yicha e'tirozingiz bo'lsa, quyidagi manzil orqali administratorga yozing:\n\n"
+                f"📞 **Administrator:** @Operator_1985\n"
+                f"📝 Arizangiz ko'rib chiqiladi."
+            )
+            await message.answer(block_message)
+            return
+    
+    user = db.get_user(message.from_user.id)
+    # ... qolgan kod
+    
+    if user:
+        await message.answer(
+            "🤗 Assalomu Aleykum! Dunyo Kinosi Olamiga xush kelibsiz! 🎬\n"
+            "Bu Bot Siz izlagan barcha Kontentlarni o'z ichiga olgan. 🔍\n"
+            "Sevimli Kino va Seriallaringizni va Multfilmlarni\n"
+            "Musiqa Konsert Dasturlarini To'liq Nomi Yozib\n"
+            "Qidiruv Bo'limi Orqali topshingiz ham mumkin!",
+            reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
         )
     else:
-        await update.message.reply_text("🏠 Asosiy menyu:", reply_markup=get_main_menu())
+        await message.answer(
+            "🤗 Assalomu Aleykum Dunyo Kinosi Olamiga xush kelibsiz! 🎬\n"
+            "Bu Bot Siz izlagan barcha Kontentlarni o'z ichiga olgan. 🔍\n"
+            "Sevimli Kino va Seriallaringizni va Multfilmlarni\n"
+            "Musiqa Konsert Dasturlarini To'liq Nomi Yozib\n"
+            "Qidiruv Bo'limi Orqali topshingiz ham mumkin!\n\n"
+            "👇 Kerakli Tilni Tanlang",
+            reply_markup=language_keyboard()
+        )
+        await state.set_state(Registration.language)
 
-# ==================== KONTENT KO'RSATISH VA SAHIFALASH FUNKSIYALARI ====================
-def get_content_navigation_menu(page, total_pages, subject, category_type="hollywood"):
-    """Kontent navigatsiya menyusini yaratish - HAR BIR KONTENT UCHUN ALOHIDA"""
+@dp.message(Registration.language)
+async def process_language(message: types.Message, state: FSMContext):
+    language_text = message.text
+    
+    language_map = {
+        "🇺🇿 O'zbek": "uz",
+        "🇷🇺 Русский": "ru", 
+        "🏴 English": "en"
+    }
+    
+    language = language_map.get(language_text, "uz")
+    await state.update_data(language=language)
+    
+    await message.answer(
+        "Ismingizni kiriting:",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    await state.set_state(Registration.name)
+
+@dp.message(Registration.name)
+async def process_name(message: types.Message, state: FSMContext):
+    name = message.text
+    await state.update_data(name=name)
+    
+    await message.answer(
+        "Telefon raqamingizni yuboring:",
+        reply_markup=phone_keyboard()
+    )
+    await state.set_state(Registration.phone)
+
+@dp.message(Registration.phone, F.contact)
+async def process_phone(message: types.Message, state: FSMContext):
+    phone_number = message.contact.phone_number
+    data = await state.get_data()
+    
+    # -*-*- YUKLASH ANIMATSIYASI -*-*-
+    processing_msg = await message.answer("Ma'lumotlaringiz Tekshirilmoqda...")
+    
+    for i in range(3):
+        await asyncio.sleep(1)
+        dots = "." * (i + 1)
+        await processing_msg.edit_text(f"Ma'lumotlaringiz Tekshirilmoqda{dots}")
+    
+    # -*-*- BAZAGA FOYDALANUVCHI QO'SHISH -*-*-
+    db.add_user(
+        user_id=message.from_user.id,
+        username=message.from_user.username,
+        first_name=data['name'],
+        phone_number=phone_number,
+        language=data['language']
+    )
+    
+    await processing_msg.delete()
+    
+    # -*-*- TASDIQLASH XABARI -*-*-
+    await message.answer(
+        "✅ Sizning Ro'yxatdan O'tish Ma'lumotlaringiz Tasdiqlandi!",
+        reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
+    )
+    
+    # -*-*- ADMINGA BILDIRISHNOMA -*-*-
+    await admin_manager.send_admin_notification(
+        bot, 
+        f"📊 Yangi foydalanuvchi ro'yxatdan o'tdi!\n"
+        f"👤 Ism: {data['name']}\n"
+        f"📞 Tel: {phone_number}\n"
+        f"🌐 Til: {data['language']}\n"
+        f"🆔 ID: {message.from_user.id}"
+    )
+    
+    await state.clear()
+
+# ==============================================================================
+# -*-*- ASOSIY MENYU HANDLERLARI -*-*-
+# ==============================================================================
+
+@dp.message(F.text == "🎬 Barcha Kontentlar")
+async def all_content(message: types.Message):
+    await message.answer("🎬 Barcha Kontentlar bo'limi. Bu yerda barcha mavjud kontentlarni ko'rishingiz mumkin.")
+
+@dp.message(F.text == "📁 Bo'limlar")
+async def sections(message: types.Message):
+    await message.answer(
+        "📁 Kerakli bo'limni tanlang:",
+        reply_markup=sections_keyboard()
+    )
+
+@dp.message(F.text == "💵 Pullik Hizmatlar")
+async def premium_services(message: types.Message):
+    await message.answer(
+        "💵 **Pullik xizmatlarimiz:**\n\n"
+        "💎 **Premium Obuna** - 130,000 so'm/oy\n"
+        "📥 **Yuklab Olish** - 30,000 so'm/film\n"
+        "🎯 **Maxsus Kontentlar** - 50,000-200,000 so'm\n"
+        "🔧 **Shaxsiy Qo'llab-quvvatlash** - 20,000 so'm/soat\n\n"
+        "💳 Batafsil ma'lumot va to'lov uchun:\n"
+        "📞 @Operator_Kino_1985",
+        reply_markup=premium_services_keyboard()
+    )
+
+@dp.message(F.text == "🔍 Qidiruv")
+async def search_handler(message: types.Message, state: FSMContext):
+    await message.answer(
+        "🔍 Qidiruv: Kino, serial yoki multfilm nomini yozing:",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    await state.set_state(SearchState.waiting_search_query)
+
+# ==============================================================================
+# -*-*- BO'LIMLAR HANDLERLARI -*-*-
+# ==============================================================================
+        
+# ==============================================================================
+# -*-*- YAGONA BO'LIM HANDLERLARI -*-*-
+# ==============================================================================
+
+@dp.message(F.text == "📁 Bo'limlar")
+async def sections(message: types.Message):
+    await message.answer(
+        "📁 Kerakli bo'limni tanlang:",
+        reply_markup=get_category_keyboard("main")
+    )
+
+# ==============================================================================
+# -*-*- KONTENT O'CHIRISH HANDLERLARI -*-*-
+# ==============================================================================
+
+# -*-*- KONTENT O'CHIRISH BOSHLASH -*-*-
+@dp.message(F.text == "❌ Kontent O'chirish")
+async def start_delete_content(message: types.Message, state: FSMContext):
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        await message.answer(
+            "🗑️ **Kontent O'chirish**\n\n"
+            "Qaysi kategoriyadagi kontentni o'chirmoqchisiz?\n"
+            "Kategoriyani tanlang:",
+            reply_markup=get_category_keyboard("main")
+        )
+        await state.set_state(DeleteContentState.waiting_category)
+    else:
+        await message.answer("Sizga ruxsat yo'q!")
+
+# -*-*- KATEGORIYA TANLASH -*-*-
+@dp.message(DeleteContentState.waiting_category)
+async def process_delete_category(message: types.Message, state: FSMContext):
+    print(f"DEBUG: Foydalanuvchi matni: '{message.text}'")
+    
+    if message.text == "🔙 Asosiy Menyu":
+        await message.answer("Amalni tanlang:", reply_markup=content_management_keyboard())
+        await state.clear()
+        return
+    
+    # Har qanday kategoriyani qabul qilish
+    category = message.text
+    await state.update_data(category=category)
+    print(f"DEBUG: Kategoriya saqlandi: '{category}'")
+    
+    # Kategoriyadagi kinolarni olish
+    movies = db.get_movies_by_category_for_admin(category)
+    print(f"DEBUG: '{category}' dagi kinolar soni: {len(movies)}")
+    
+    if not movies:
+        await message.answer(
+            f"❌ **{category}** kategoriyasida hech qanday kino topilmadi.\n\n"
+            f"Boshqa kategoriyani tanlang:",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    # Kinolar ro'yxatini tayyorlash
     keyboard = []
+    for movie in movies:
+        movie_id, title, actor, price, created_at = movie
+        button_text = f"🎬 {title}"
+        keyboard.append([KeyboardButton(text=button_text)])
+        print(f"DEBUG: Kino qo'shildi: {title}")
     
-    # Oldingi/Keyingi tugmalari
-    nav_buttons = []
-    if page > 1:
-        nav_buttons.append("⬅️ Oldingi")
+    keyboard.append([KeyboardButton(text="🔙 Boshqa kategoriya")])
+    keyboard.append([KeyboardButton(text="🔙 Admin Panel")])
     
-    # Sahifa raqamlari (faqat ko'p sahifali bo'lsa)
-    if total_pages > 1:
-        page_buttons = []
-        # Faqat chegarali sonli sahifalarni ko'rsatish
-        max_visible_pages = min(5, total_pages)
-        start_page = max(1, page - 2)
-        end_page = min(total_pages, start_page + max_visible_pages - 1)
+    await message.answer(
+        f"🗑️ **{category}** kategoriyasidagi kinolar:\n\n"
+        f"O'chirmoqchi bo'lgan kinoni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+    await state.set_state(DeleteContentState.waiting_movie_selection)
+    print("DEBUG: Holat o'zgartirildi: waiting_movie_selection")
+    
+# -*-*- KINO TANLASH -*-*-
+@dp.message(DeleteContentState.waiting_movie_selection)
+async def process_movie_selection(message: types.Message, state: FSMContext):
+    print(f"DEBUG: Tanlangan kino: '{message.text}'")
+    
+    if message.text == "🔙 Boshqa kategoriya":
+        await message.answer(
+            "Boshqa kategoriyani tanlang:",
+            reply_markup=get_category_keyboard("main")
+        )
+        await state.set_state(DeleteContentState.waiting_category)
+        return
         
-        # Agar oxiriga yetmasa, start pageni sozlaymiz
-        if end_page - start_page + 1 < max_visible_pages:
-            start_page = max(1, end_page - max_visible_pages + 1)
-        
-        for p in range(start_page, end_page + 1):
-            if p == page:
-                page_buttons.append(f"🔹 {p}")  # Joriy sahifa
-            else:
-                page_buttons.append(f"{p}")     # Boshqa sahifalar
-        
-        if page_buttons:
-            # Sahifalarni qatorlarga bo'lish
-            for i in range(0, len(page_buttons), 3):
-                keyboard.append(page_buttons[i:i+3])
+    if message.text == "🔙 Admin Panel":
+        await message.answer(
+            "Admin panelga qaytingiz:",
+            reply_markup=admin_keyboard()
+        )
+        await state.clear()
+        return
     
-    if page < total_pages:
-        if not nav_buttons:  # Agar oldingi tugmasi yo'q bo'lsa
-            nav_buttons.append("Keyingi ➡️")
-        else:
-            nav_buttons.append("Keyingi ➡️")
+    # Kino nomini olish (🎬 belgisini olib tashlash)
+    movie_title = message.text.replace("🎬 ", "").strip()
+    print(f"DEBUG: Kino nomi: '{movie_title}'")
     
-    if nav_buttons:
-        keyboard.append(nav_buttons)
+    # Kino ma'lumotlarini olish
+    data = await state.get_data()
+    category = data.get('category')
+    print(f"DEBUG: Kategoriya: '{category}'")
     
-    # Orqaga qaytish tugmalari
-    back_buttons = []
-    if category_type == "hollywood":
-        back_buttons.extend(["🔙 Hollywood Kinolari", "🏠 Asosiy menyu"])
-    elif category_type == "hindi":
-        back_buttons.extend(["🔙 Hind Filmlari", "🏠 Asosiy menyu"])
-    elif category_type == "russian":
-        back_buttons.extend(["🔙 Rus Kinolari", "🏠 Asosiy menyu"])
-    elif category_type == "uzbek":
-        back_buttons.extend(["🔙 O'zbek Kinolari", "🏠 Asosiy menyu"])
-    elif category_type == "islamic":
-        back_buttons.extend(["🔙 Islomiy Kinolar", "🏠 Asosiy menyu"])
-    elif category_type == "turkish":
-        back_buttons.extend(["🔙 Turk Seriallari", "🏠 Asosiy menyu"])
-    elif category_type == "kids":
-        back_buttons.extend(["🔙 Bolalar Kinolari", "🏠 Asosiy menyu"])
-    elif category_type == "cartoons":
-        back_buttons.extend(["🔙 Bolalar Multfilmlari", "🏠 Asosiy menyu"])
-    elif category_type == "korean_movies":
-        back_buttons.extend(["🔙 Koreys Kinolari", "🏠 Asosiy menyu"])
-    elif category_type == "korean_series":
-        back_buttons.extend(["🔙 Koreys Seriallari", "🏠 Asosiy menyu"])
-    elif category_type == "music":
-        back_buttons.extend(["🔙 Musiqa", "🏠 Asosiy menyu"])
-    else:
-        back_buttons.extend(["🔙 Kategoriyalar", "🏠 Asosiy menyu"])
+    # Kategoriyadagi barcha kinolarni olish
+    movies = db.get_movies_by_category_for_admin(category)
+    print(f"DEBUG: Kategoriyadagi kinolar soni: {len(movies)}")
     
-    keyboard.append(back_buttons)
+    # DEBUG: Barcha kinolarni ko'rsatish
+    print("DEBUG: Barcha kinolar ro'yxati:")
+    for i, movie in enumerate(movies):
+        movie_id, title, actor, price, created_at = movie
+        print(f"DEBUG: {i+1}. ID: {movie_id}, Nomi: '{title}'")
     
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    selected_movie = None
+    for movie in movies:
+        movie_id, title, actor, price, created_at = movie
+        print(f"DEBUG: Tekshirilayotgan kino: '{title}'")
+        if title.strip() == movie_title.strip():
+            selected_movie = movie
+            print(f"DEBUG: Kino topildi: {title}")
+            break
+    
+    if not selected_movie:
+        print(f"DEBUG: Kino topilmadi: '{movie_title}'")
+        await message.answer("❌ Kino topilmadi! Iltimos, qayta urinib ko'ring.")
+        return
+    
+    movie_id, title, actor, price, created_at = selected_movie
+    
+    await state.update_data(movie_id=movie_id, movie_title=title)
+    
+    await message.answer(
+        f"⚠️ **KINO O'CHIRISH** ⚠️\n\n"
+        f"🎬 **Nomi:** {title}\n"
+        f"🎭 **Aktyor:** {actor}\n"
+        f"📁 **Kategoriya:** {category}\n"
+        f"💵 **Narxi:** {price} so'm\n"
+        f"📅 **Qo'shilgan sana:** {created_at}\n"
+        f"🆔 **ID:** {movie_id}\n\n"
+        f"**HAQIQATDAN HAM BU KINONI O'CHIRMOQCHIMISIZ?**\n\n"
+        f"Bu amalni ortga qaytarib bo'lmaydi!",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="✅ HA, O'CHIRISH"), KeyboardButton(text="❌ BEKOR QILISH")]
+            ],
+            resize_keyboard=True
+        )
+    )
+    await state.set_state(DeleteContentState.waiting_confirmation)
 
-# ==================== YANGILANGAN SAHIFALAB KONTENT KO'RSATISH ====================
-async def send_paginated_content(update: Update, context: ContextTypes.DEFAULT_TYPE, 
-                               category, subject, category_type="hollywood"):
-    """Kontentlarni sahifalab ko'rsatish - YANGILANGAN VERSIYA"""
-    try:
-        # Sahifa raqamini olish
-        page = context.user_data.get(f'page_{category}_{subject}', 1)
+# -*-*- TASDIQLASH -*-*-
+@dp.message(DeleteContentState.waiting_confirmation)
+async def process_delete_confirmation(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    movie_id = data.get('movie_id')
+    movie_title = data.get('movie_title')
+    category = data.get('category')
+    
+    if message.text == "✅ HA, O'CHIRISH":
+        # Kino o'chirish
+        success = db.delete_movie(movie_id)
         
-        print(f"DEBUG: Kontent ko'rsatish - Category: {category}, Subject: {subject}, Page: {page}")
+        if success:
+            await message.answer(
+                f"✅ **KINO O'CHIRILDI!**\n\n"
+                f"🎬 **Nomi:** {movie_title}\n"
+                f"🆔 **ID:** {movie_id}\n"
+                f"📁 **Kategoriya:** {category}\n\n"
+                f"Kino bazadan muvaffaqiyatli o'chirildi.",
+                reply_markup=admin_advanced_keyboard()  # <- O'ZGARDI
+            )
+            
+            # Admin log
+            await admin_manager.send_admin_notification(
+                bot,
+                f"🗑️ **Kino o'chirildi**\n\n"
+                f"👤 **Admin:** {message.from_user.first_name}\n"
+                f"🎬 **Kino:** {movie_title}\n"
+                f"🆔 **ID:** {movie_id}\n"
+                f"📁 **Kategoriya:** {category}"
+            )
+        else:
+            await message.answer(
+                f"❌ **XATOLIK!**\n\n"
+                f"Kino o'chirishda xatolik yuz berdi.\n"
+                f"Iltimos, qayta urinib ko'ring.",
+                reply_markup=admin_advanced_keyboard()  # <- O'ZGARDI
+            )
+    else:
+        await message.answer(
+            "❌ Kino o'chirish bekor qilindi.",
+            reply_markup=admin_advanced_keyboard()  # <- O'ZGARDI
+        )
+    
+    await state.clear()
+
+# ==============================================================================
+# -*-*- KINO TANLANGANDA VIDEO YUBORISH (YANGILANGAN) -*-*-
+# ==============================================================================
+@dp.message(F.text.startswith("🎬"))
+async def show_movie_details(message: types.Message, state: FSMContext):
+    """Kino tanlanganda banner yuborish"""
+    full_text = message.text[2:].strip()  # "🎬 " ni olib tashlaymiz
+    user_id = message.from_user.id
+    
+    print(f"DEBUG: Kino tanlandi: '{full_text}'")
+    
+    # Faqat kino nomini olish (aktyor nomini olib tashlash)
+    movie_title = full_text
+    if " - " in full_text:
+        movie_title = full_text.split(" - ")[0].strip()
+    
+    print(f"DEBUG: Qidirilayotgan kino nomi: '{movie_title}'")
+    
+    # Barcha kinolardan qidirish
+    all_movies = db.get_all_movies_sorted()
+    selected_movie = None
+    
+    for movie in all_movies:
+        movie_id, db_title, description, category, file_id, price, is_premium, db_actor, banner_file_id, created_at, added_by = movie
         
-        # Kontentlarni olish
-        contents, total_pages, total_count = db.get_content_by_subject_paginated(
-            category, subject, page
+        # Faqat kino nomini solishtiramiz
+        if movie_title.lower() == db_title.lower():
+            selected_movie = movie
+            print(f"DEBUG: Kino topildi: {db_title}")
+            break
+    
+    if selected_movie:
+        # KINO MA'LUMOTLARINI STATE GA SAQLASH
+        await state.update_data(
+            movie_id=selected_movie[0],
+            movie_title=selected_movie[1],
+            movie_price=selected_movie[5]
         )
         
-        print(f"DEBUG: Bazadan qaytgan kontentlar: {len(contents)} ta, Jami sahifalar: {total_pages}")
+        print(f"DEBUG: Banner yuborilmoqda...")
+        # BANNER YUBORISH
+        await send_content_banner(message, selected_movie, user_id)
+    else:
+        print(f"DEBUG: Kino topilmadi")
+        await message.answer("❌ Kino topilmadi. Iltimos, qayta urinib ko'ring.")
         
-        if contents:
-            # Faqat bitta kontentni ko'rsatish
-            content = contents[0]  # Birinchi kontentni olish
-            title = content[1]
-            description = content[2]
-            file_id = content[4]
-            file_type = content[5]
+# ==============================================================================
+# -*-*- TO'LOV HANDLERLARI -*-*-
+# ==============================================================================
+
+@dp.message(F.text == "💳 Yuklab olish uchun to'lash")
+async def start_payment(message: types.Message, state: FSMContext):
+    """To'lov boshlash"""
+    # State dan kino ma'lumotlarini olish
+    data = await state.get_data()
+    movie_id = data.get('movie_id')
+    movie_title = data.get('movie_title', "Noma'lum")
+    movie_price = data.get('movie_price', 30000)
+    
+    if not movie_id:
+        await message.answer("❌ Kino ma'lumotlari topilmadi. Qaytadan urinib ko'ring.")
+        return
+    
+    await message.answer(
+        f"💳 **To'lov ma'lumotlari:**\n\n"
+        f"🎬 Kino: {movie_title}\n"
+        f"💵 Summa: {movie_price:,} so'm\n\n"
+        f"🏦 **Karta orqali:** 9860 3501 4890 3205 (HUMO)\n"
+        f"📱 **Click orqali:** +998888882505\n\n"
+        f"📸 **To'lov chekini yuboring:**\n"
+        "(screenshot yoki rasm)",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    await state.set_state(PaymentState.waiting_payment_receipt)
+    
+# Global o'zgaruvchi
+last_payment_processing_time = 0
+
+@dp.message(F.text.startswith("✅ Tasdiqlash #"))
+async def confirm_payment(message: types.Message):
+    """To'lovni tasdiqlash"""
+    global last_payment_processing_time
+    
+    # 3 soniya ichida qayta ishlamaslik
+    current_time = time.time()
+    if current_time - last_payment_processing_time < 3:
+        return
+    last_payment_processing_time = current_time
+    
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        try:
+            payment_id = int(message.text.split("#")[1])
             
-            caption = f"🎬 {title}\n📝 {description}\n\n📄 Sahifa: {page}/{total_pages} | Jami: {total_count} ta"
+            # To'lov ma'lumotlarini olish
+            pending_payments = db.get_pending_payments()
+            payment_info = None
+            for payment in pending_payments:
+                if payment[0] == payment_id:
+                    payment_info = payment
+                    break
             
-            # Navigatsiya menyusini yaratish
-            reply_markup = get_content_navigation_menu(page, total_pages, subject, category_type)
-            
-            # Kontentni yuborish
-            try:
-                if file_type == "video":
-                    await update.message.reply_video(video=file_id, caption=caption, reply_markup=reply_markup)
-                elif file_type == "photo":
-                    await update.message.reply_photo(photo=file_id, caption=caption, reply_markup=reply_markup)
-                elif file_type == "audio":
-                    await update.message.reply_audio(audio=file_id, caption=caption, reply_markup=reply_markup)
-                elif file_type == "document":
-                    await update.message.reply_document(document=file_id, caption=caption, reply_markup=reply_markup)
+            if payment_info:
+                user_id = payment_info[1]
+                movie_id = payment_info[4]
+                
+                # KINO NOMINI TO'G'RI OLISH
+                movie = db.get_movie_by_id(movie_id)
+                if movie:
+                    movie_title = movie[1]  # Kino nomi
+                    file_id = movie[4]      # Video file_id
                 else:
-                    await update.message.reply_text(caption, reply_markup=reply_markup)
+                    movie_title = "Noma'lum"
+                    file_id = None
                 
-                print(f"DEBUG: Kontent yuborildi: {title}")
+                # Foydalanuvchiga kinoni ochish huquqini berish
+                db.add_user_purchase(user_id, movie_id)
+                db.update_payment_status(payment_id, "completed")
                 
-            except Exception as e:
-                logging.error(f"Kontent yuborishda xatolik: {e}")
-                await update.message.reply_text(f"❌ Fayl yuborishda xatolik: {caption}", reply_markup=reply_markup)
-            
-        else:
-            await update.message.reply_text(
-                f"❌ Hozircha {subject} mavjud emas.\n\n"
-                "⏳ Tez orada qo'shiladi yoki\n"
-                "💼 Pullik hizmatlar bo'limidan so'rab olishingiz mumkin.",
-                reply_markup=get_categories_menu()
-            )
-            
-    except Exception as e:
-        logging.error(f"Kontent ko'rsatishda xatolik: {e}")
-        await update.message.reply_text(
-            "❌ Kontentlarni yuklashda xatolik yuz berdi. Iltimos qayta urinib ko'ring.",
-            reply_markup=get_categories_menu()
-        )
-        
-# ==================== SAHIFA RAQAMLARI HANDLERI ====================
-async def handle_page_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Sahifa raqamini tanlash - YANGILANGAN VERSIYA"""
-    message_text = update.message.text
-    
-    print(f"DEBUG: Sahifa tanlandi: '{message_text}'")
-    
-    # Sahifa raqamini ajratib olish (🔹 5 -> 5)
-    if "🔹" in message_text:
-        page_text = message_text.replace("🔹", "").strip()
-    else:
-        page_text = message_text.strip()
-    
-    if page_text.isdigit():
-        page = int(page_text)
-        current_category = context.user_data.get('current_category')
-        current_subject = context.user_data.get('current_subject')
-        category_type = context.user_data.get('category_type', 'hollywood')
-        
-        if current_category and current_subject:
-            # Kontentlarni tekshirish
-            contents, total_pages, total_count = db.get_content_by_subject_paginated(
-                current_category, current_subject, page
-            )
-            if contents:
-                context.user_data[f'page_{current_category}_{current_subject}'] = page
-                await send_paginated_content(update, context, current_category, current_subject, category_type)
+                # Foydalanuvchiga xabar
+                await bot.send_message(
+                    user_id,
+                    f"🎉 **To'lov tasdiqlandi!**\n\n"
+                    f"✅ **{movie_title}** kinosi ochildi!\n"
+                    f"Siz endi bu kinoni istalgan vaqt tomosha qilishingiz mumkin.\n\n"
+                    f"📁 Bo'limlar orqali kinoni topib ko'rishingiz mumkin."
+                )
+                
+                await message.answer(
+                    f"✅ To'lov #{payment_id} tasdiqlandi!\n"
+                    f"👤 Foydalanuvchi: {user_id}\n"
+                    f"🎬 Kino: {movie_title}",
+                    reply_markup=admin_advanced_keyboard()
+                )
             else:
-                await update.message.reply_text("❌ Bu sahifada kontent yo'q")
-        else:
-            await update.message.reply_text("❌ Sahifalash ma'lumotlari topilmadi")
-    else:
-        await update.message.reply_text("❌ Noto'g'ri sahifa formati")       
+                await message.answer("❌ To'lov topilmadi")
+                
+        except Exception as e:
+            await message.answer(f"❌ Xatolik: {e}")
 
-# ==================== NAVIGATSIYA HANDLERLARI ====================
-# ==================== OLDINGI SAHIFAGA O'TISH ====================
-async def handle_previous_page(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Oldingi sahifaga o'tish"""
-    current_category = context.user_data.get('current_category')
-    current_subject = context.user_data.get('current_subject')
-    category_type = context.user_data.get('category_type', 'hollywood')
+@dp.message(PaymentState.waiting_payment_receipt, F.photo)
+async def process_payment_receipt(message: types.Message, state: FSMContext):
+    receipt_file_id = message.photo[-1].file_id
     
-    if current_category and current_subject:
-        current_page = context.user_data.get(f'page_{current_category}_{current_subject}', 1)
-        if current_page > 1:
-            context.user_data[f'page_{current_category}_{current_subject}'] = current_page - 1
-            await send_paginated_content(update, context, current_category, current_subject, category_type)
-        else:
-            await update.message.reply_text("❌ Siz birinchi sahifadasiz")
+    # State dan TO'LIQ MA'LUMOTLARNI OLISH
+    data = await state.get_data()
+    movie_id = data.get('movie_id')
+    movie_title = data.get('movie_title', "Noma'lum")
+    movie_price = data.get('movie_price', 30000)
+    
+    if not movie_id:
+        await message.answer("❌ Kino ma'lumotlari topilmadi. Qaytadan boshlang.")
+        await state.clear()
+        return
+    
+    # To'lovni bazaga yozish
+    payment_id = db.add_payment(
+        user_id=message.from_user.id,
+        amount=movie_price,
+        content_id=movie_id,
+        content_type="movie",
+        receipt_file_id=receipt_file_id
+    )
+    
+    # POYEZD ANIMATSIYASI
+    train_animations = [
+        "🚂▱▱▱▱▱▱▱▱▱ **To'lov tekshirilmoqda...**",
+        "🚂▰▱▱▱▱▱▱▱▱ **Keling...**",
+        "🚂▰▰▱▱▱▱▱▱▱ **Tekshirilmoqda...**",
+        "🚂▰▰▰▱▱▱▱▱▱ **Ma'lumotlar...**",
+        "🚂▰▰▰▰▱▱▱▱▱ **To'lov...**",
+        "🚂▰▰▰▰▰▱▱▱▱ **Tasdiqlanmoqda...**",
+        "🚂▰▰▰▰▰▰▱▱▱ **Tez orada...**",
+        "🚂▰▰▰▰▰▰▰▱▱ **Natija bilan...**",
+        "🚂▰▰▰▰▰▰▰▰▱ **Ko'rishamiz!**",
+        "🚂▰▰▰▰▰▰▰▰▰✅ **Tayyor!**"
+    ]
+
+    # Loading xabarini yuborish
+    loading_msg = await message.answer("🚂 **To'lov tekshirilmoqda...**")
+
+    # Poyezd animatsiyasi - reply_markup O'CHIRILDI
+    for animation in train_animations:
+        await loading_msg.edit_text(
+            f"{animation}\n\n"
+            f"🎬 **Kino:** {movie_title}\n"
+            f"💵 **Summa:** {movie_price:,} so'm\n"
+            f"🆔 **To'lov ID:** {payment_id}"
+        )
+        await asyncio.sleep(0.7)
+
+    # Yakuniy xabar
+    await loading_msg.edit_text(
+        "✅ **To'lov cheki qabul qilindi!**\n\n"
+        f"🎬 **Kino:** {movie_title}\n"
+        f"💵 **Summa:** {movie_price:,} so'm\n"
+        f"🆔 **To'lov ID:** {payment_id}\n\n"
+        f"⏳ **Admin tomonidan tekshirilmoqda...**\n"
+        f"📞 **Agar 1 soat ichida javob bo'lmasa, @Operator_Kino_1985 ga murojaat qiling.**"
+    )
+    
+    # Foydalanuvchiga asosiy menyuni qaytarish
+    await message.answer(
+        "Asosiy menyuga qaytingiz:",
+        reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
+    )
+    
+    # Admin ga CHEK SURATINI YUBORISH
+    try:
+        await bot.send_photo(
+            chat_id=ADMIN_ID,
+            photo=receipt_file_id,
+            caption=f"📸 To'lov cheki - ID: {payment_id}"
+        )
+    except Exception as e:
+        print(f"❌ Chek suratini yuborishda xatolik: {e}")
+    
+    # Admin ga to'lov ma'lumotlari
+    admin_message = (
+        f"💰 **Yangi to'lov so'rovi!**\n\n"
+        f"👤 **Foydalanuvchi:** {message.from_user.first_name}\n"
+        f"🆔 **User ID:** {message.from_user.id}\n"
+        f"🎬 **Kino:** {movie_title}\n"
+        f"🆔 **Kino ID:** {movie_id}\n"
+        f"💵 **Summa:** {movie_price:,} so'm\n"
+        f"🆔 **To'lov ID:** {payment_id}\n\n"
+        f"📸 **Chek surati yuqorida yuborildi**\n\n"
+        f"**Quyidagi tugmalardan birini bosing:**"
+    )
+    
+    await bot.send_message(
+        chat_id=ADMIN_ID,
+        text=admin_message,
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text=f"✅ Tasdiqlash #{payment_id}")],
+                [KeyboardButton(text=f"❌ Rad etish #{payment_id}")],
+                [KeyboardButton(text="💰 To'lovlarni ko'rish")]
+            ],
+            resize_keyboard=True
+        )
+    )
+    
+    await state.clear()
+    
+@dp.message(F.text.startswith("❌ Rad etish #"))
+async def reject_payment(message: types.Message):
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        try:
+            payment_id = int(message.text.split("#")[1])
             
-# ==================== ASOSIY MENYUGA QAYTISH HANDLERI ====================
-async def handle_main_menu_return(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Asosiy menyuga qaytish"""
-    user_id = update.effective_user.id
-    admin_panel = AdminPanel()
+            # To'lov ma'lumotlarini olish
+            pending_payments = db.get_pending_payments()
+            payment_info = None
+            for payment in pending_payments:
+                if payment[0] == payment_id:
+                    payment_info = payment
+                    break
+            
+            if payment_info:
+                user_id = payment_info[1]
+                movie_title = payment_info[9] if payment_info[9] else "Noma'lum"
+                
+                # To'lovni rad etish
+                db.update_payment_status(payment_id, "rejected")
+                
+                # Foydalanuvchiga xabar
+                await bot.send_message(
+                    user_id,
+                    f"❌ **To'lov rad etildi!**\n\n"
+                    f"**{movie_title}** kinosi uchun to'lov chekingiz tasdiqlanmadi.\n"
+                    f"📞 Sababini bilish uchun @Operator_Kino_1985 ga murojaat qiling."
+                )
+                
+                await message.answer(
+                    f"❌ To'lov #{payment_id} rad etildi!\n"
+                    f"👤 Foydalanuvchi: {user_id} ga xabar yuborildi.",
+                    reply_markup=admin_keyboard()
+                )
+            else:
+                await message.answer("❌ To'lov topilmadi")
+                
+        except Exception as e:
+            await message.answer(f"❌ Xatolik: {e}")
     
-    # User data ni tozalash
-    keys_to_remove = [key for key in context.user_data.keys() if key.startswith('page_') or key.startswith('current_')]
-    for key in keys_to_remove:
-        del context.user_data[key]
+# ==============================================================================
+# -*-*- CHEK YUBORISH SO'ROVI -*-*-
+# ==============================================================================
+@dp.message(F.text == "📸 Chek yuborish")
+async def request_receipt(message: types.Message, state: FSMContext):
+    await message.answer(
+        "📸 **To'lov chekini yuboring:**\n\n"
+        "• Ekran screenshotini oling\n" 
+        "• To'liq summa va vaqt ko'rinsin\n"
+        "• Yorqin va o'qiladigan bo'lsin",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    await state.set_state(PaymentState.waiting_payment_receipt)    
     
-    if await admin_panel.check_admin(user_id):
-        await update.message.reply_text(
-            "👨‍💻 Admin panelga qaytdingiz:",
-            reply_markup=admin_panel.get_admin_main_menu()
+# ==============================================================================
+# -*-*- YUKLAB OLISH HANDLERI -*-*-
+# ==============================================================================
+
+@dp.message(F.text == "📥 Yuklab olish")
+async def download_movie(message: types.Message):
+    user_id = message.from_user.id
+    
+    # Premium statusni tekshirish
+    if db.check_premium_status(user_id):
+        await message.answer(
+            "🎬 **Yuklab olish**\n\n"
+            "Sizda premium obuna faol! Har qanday kinoni yuklab olishingiz mumkin.\n\n"
+            "📁 Bo'limlar orqali kerakli kinoni toping va yuklab oling."
         )
     else:
-        await update.message.reply_text(
-            "🏠 Asosiy menyuga qaytingiz:",
-            reply_markup=get_main_menu()
+        await message.answer(
+            "📥 **Yuklab Olish Xizmati**\n\n"
+            "Kinolarni telefon yoki kompyuteringizga yuklab oling:\n\n"
+            "💰 **Narxlar:**\n"
+            "• Kino: 30,000 so'm\n"
+            "• Serial (1 qism): 15,000 so'm\n\n"
+            "💳 **To'lov qiling:**\n"
+            "Karta: 9860 3501 4890 3205\n"
+            "Click: +998888882505\n\n"
+            "To'lov qilgach, chekni @Operator_Kino_1985 ga yuboring.",
+            reply_markup=premium_services_keyboard()
         )    
 
-# ==================== ASOSIY MENYU HANDLERI ====================
-async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Asosiy menyuga qaytish - YANGILANGAN VERSIYA"""
-    user_id = update.effective_user.id
-    admin_panel = AdminPanel()
+@dp.message(PaymentState.waiting_payment_receipt, F.text == "🔙 Orqaga")
+async def back_from_payment(message: types.Message, state: FSMContext):
+    await state.clear()
+    await message.answer(
+        "To'lov bekor qilindi.",
+        reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
+    ) 
+
     
-    # User data ni tozalash
-    keys_to_remove = [key for key in context.user_data.keys() if key.startswith('page_') or key.startswith('current_')]
-    for key in keys_to_remove:
-        del context.user_data[key]
-        print(f"DEBUG: User data tozalandi: {key}")
+# ==============================================================================
+# -*-*- HOLLYWOOD KINOLARINI KO'RSATISH -*-*-
+# ==============================================================================
+@dp.message(F.text == "🎭 Hollywood Kinolari")
+async def show_hollywood_movies(message: types.Message):
+    """Hollywood kinolarini ko'rsatish"""
+    movies = db.get_movies_by_category("🎭 Hollywood")
     
-    if await admin_panel.check_admin(user_id):
-        await update.message.reply_text(
-            "👨‍💻 Admin panelga qaytdingiz:",
-            reply_markup=admin_panel.get_admin_main_menu()
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kinolar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
         )
-    else:
-        await update.message.reply_text(
-            "🏠 Asosiy menyuga qaytingiz:",
-            reply_markup=get_main_menu()
-        )  
-
-# ==================== UNIVERSAL ASOSIY MENYU HANDLERI ====================
-async def universal_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Barcha joylardan asosiy menyuga qaytish"""
-    user_id = update.effective_user.id
-    admin_panel = AdminPanel()
-    
-    # Barcha sahifalash ma'lumotlarini tozalash
-    for key in list(context.user_data.keys()):
-        if key.startswith('page_') or key.startswith('current_') or key.startswith('waiting_'):
-            del context.user_data[key]
-    
-    if await admin_panel.check_admin(user_id):
-        await update.message.reply_text(
-            "👨‍💻 Admin panelga qaytdingiz:",
-            reply_markup=admin_panel.get_admin_main_menu()
-        )
-    else:
-        await update.message.reply_text(
-            "🏠 Asosiy menyuga qaytingiz:",
-            reply_markup=get_main_menu()
-        )      
-
-# ==================== KEYINGI SAHIFAGA O'TISH ====================
-async def handle_next_page(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Keyingi sahifaga o'tish"""
-    current_category = context.user_data.get('current_category')
-    current_subject = context.user_data.get('current_subject')
-    category_type = context.user_data.get('category_type', 'hollywood')
-    
-    if current_category and current_subject:
-        current_page = context.user_data.get(f'page_{current_category}_{current_subject}', 1)
-        contents, total_pages, total_count = db.get_content_by_subject_paginated(
-            current_category, current_subject, current_page + 1
-        )
-        if contents:
-            context.user_data[f'page_{current_category}_{current_subject}'] = current_page + 1
-            await send_paginated_content(update, context, current_category, current_subject, category_type)
-        else:
-            await update.message.reply_text("❌ Siz oxirgi sahifadasiz")
-
-async def handle_next_page(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Keyingi sahifaga o'tish"""
-    current_category = context.user_data.get('current_category')
-    current_subject = context.user_data.get('current_subject')
-    category_type = context.user_data.get('category_type', 'hollywood')
-    
-    if current_category and current_subject:
-        current_page = context.user_data.get(f'page_{current_category}_{current_subject}', 1)
-        contents, total_pages, total_count = db.get_content_by_subject_paginated(
-            current_category, current_subject, current_page + 1
-        )
-        if contents:
-            context.user_data[f'page_{current_category}_{current_subject}'] = current_page + 1
-            await send_paginated_content(update, context, current_category, current_subject, category_type)
-
-async def handle_page_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Sahifa raqamini qayta ishlash"""
-    message_text = update.message.text
-    page_text = message_text.replace('🔹 ', '').strip()
-    
-    if page_text.isdigit():
-        page = int(page_text)
-        current_category = context.user_data.get('current_category')
-        current_subject = context.user_data.get('current_subject')
-        category_type = context.user_data.get('category_type', 'hollywood')
-        
-        if current_category and current_subject:
-            contents, total_pages, total_count = db.get_content_by_subject_paginated(
-                current_category, current_subject, page
-            )
-            if contents:
-                context.user_data[f'page_{current_category}_{current_subject}'] = page
-                await send_paginated_content(update, context, current_category, current_subject, category_type)
-
-# ==================== HOLLYWOOD KONTENTLARINI KO'RSATISH FUNKSIYALARI ====================
-async def show_mel_gibson_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "hollywood"
-    context.user_data['current_subject'] = "🎬 Mel Gibson Kinolari"
-    context.user_data['category_type'] = "hollywood"
-    context.user_data["page_hollywood_🎬 Mel Gibson Kinolari"] = 1
-    await send_paginated_content(update, context, "hollywood", "🎬 Mel Gibson Kinolari", "hollywood")
-
-async def show_arnold_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "hollywood"
-    context.user_data['current_subject'] = "💪 Arnold Schwarzenegger Kinolari"
-    context.user_data['category_type'] = "hollywood"
-    context.user_data["page_hollywood_💪 Arnold Schwarzenegger Kinolari"] = 1
-    await send_paginated_content(update, context, "hollywood", "💪 Arnold Schwarzenegger Kinolari", "hollywood")
-
-async def show_stallone_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "hollywood"
-    context.user_data['current_subject'] = "🥊 Sylvester Stallone Kinolari"
-    context.user_data['category_type'] = "hollywood"
-    context.user_data["page_hollywood_🥊 Sylvester Stallone Kinolari"] = 1
-    await send_paginated_content(update, context, "hollywood", "🥊 Sylvester Stallone Kinolari", "hollywood")
-
-async def show_statham_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "hollywood"
-    context.user_data['current_subject'] = "🚗 Jason Statham Kinolari"
-    context.user_data['category_type'] = "hollywood"
-    context.user_data["page_hollywood_🚗 Jason Statham Kinolari"] = 1
-    await send_paginated_content(update, context, "hollywood", "🚗 Jason Statham Kinolari", "hollywood")
-
-async def show_jackie_chan_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "hollywood"
-    context.user_data['current_subject'] = "🐉 Jeki Chan Kinolari"
-    context.user_data['category_type'] = "hollywood"
-    context.user_data["page_hollywood_🐉 Jeki Chan Kinolari"] = 1
-    await send_paginated_content(update, context, "hollywood", "🐉 Jeki Chan Kinolari", "hollywood")
-
-async def show_adkins_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "hollywood"
-    context.user_data['current_subject'] = "🥋 Skod Adkins Kinolari"
-    context.user_data['category_type'] = "hollywood"
-    context.user_data["page_hollywood_🥋 Skod Adkins Kinolari"] = 1
-    await send_paginated_content(update, context, "hollywood", "🥋 Skod Adkins Kinolari", "hollywood")
-
-async def show_denzel_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "hollywood"
-    context.user_data['current_subject'] = "🎭 Denzil Washington Kinolari"
-    context.user_data['category_type'] = "hollywood"
-    context.user_data["page_hollywood_🎭 Denzil Washington Kinolari"] = 1
-    await send_paginated_content(update, context, "hollywood", "🎭 Denzil Washington Kinolari", "hollywood")
-
-async def show_van_damme_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "hollywood"
-    context.user_data['current_subject'] = "💥 Jan Clod Van Dam Kinolari"
-    context.user_data['category_type'] = "hollywood"
-    context.user_data["page_hollywood_💥 Jan Clod Van Dam Kinolari"] = 1
-    await send_paginated_content(update, context, "hollywood", "💥 Jan Clod Van Dam Kinolari", "hollywood")
-
-async def show_bruce_lee_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "hollywood"
-    context.user_data['current_subject'] = "👊 Brus Li Kinolari"
-    context.user_data['category_type'] = "hollywood"
-    context.user_data["page_hollywood_👊 Brus Li Kinolari"] = 1
-    await send_paginated_content(update, context, "hollywood", "👊 Brus Li Kinolari", "hollywood")
-
-async def show_jim_carrey_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "hollywood"
-    context.user_data['current_subject'] = "😂 Jim Cerry Kinolari"
-    context.user_data['category_type'] = "hollywood"
-    context.user_data["page_hollywood_😂 Jim Cerry Kinolari"] = 1
-    await send_paginated_content(update, context, "hollywood", "😂 Jim Cerry Kinolari", "hollywood")
-
-async def show_johnny_depp_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "hollywood"
-    context.user_data['current_subject'] = "🎩 Jonni Depp Kinolari"
-    context.user_data['category_type'] = "hollywood"
-    context.user_data["page_hollywood_🎩 Jonni Depp Kinolari"] = 1
-    await send_paginated_content(update, context, "hollywood", "🎩 Jonni Depp Kinolari", "hollywood")
-
-async def show_other_hollywood_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "hollywood"
-    context.user_data['current_subject'] = "🌟 Boshqa Hollywood Kinolari"
-    context.user_data['category_type'] = "hollywood"
-    context.user_data["page_hollywood_🌟 Boshqa Hollywood Kinolari"] = 1
-    await send_paginated_content(update, context, "hollywood", "🌟 Boshqa Hollywood Kinolari", "hollywood")
-
-# ==================== RUS KONTENTLARINI KO'RSATISH FUNKSIYALARI ====================
-async def show_love_in_work(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "russian"
-    context.user_data['current_subject'] = "💘 Ishdagi Ishq"
-    context.user_data['category_type'] = "russian"
-    context.user_data["page_russian_💘 Ishdagi Ishq"] = 1
-    await send_paginated_content(update, context, "russian", "💘 Ishdagi Ishq", "russian")
-
-async def show_shurik_adventures(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "russian"
-    context.user_data['current_subject'] = "🎭 Shurikning Sarguzashtlari"
-    context.user_data['category_type'] = "russian"
-    context.user_data["page_russian_🎭 Shurikning Sarguzashtlari"] = 1
-    await send_paginated_content(update, context, "russian", "🎭 Shurikning Sarguzashtlari", "russian")
-
-async def show_ivan_vasilivich(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "russian"
-    context.user_data['current_subject'] = "🔄 Ivan Vasilivich"
-    context.user_data['category_type'] = "russian"
-    context.user_data["page_russian_🔄 Ivan Vasilivich"] = 1
-    await send_paginated_content(update, context, "russian", "🔄 Ivan Vasilivich", "russian")
-
-async def show_match_going(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "russian"
-    context.user_data['current_subject'] = "🔥 Gugurtga Ketib"
-    context.user_data['category_type'] = "russian"
-    context.user_data["page_russian_🔥 Gugurtga Ketib"] = 1
-    await send_paginated_content(update, context, "russian", "🔥 Gugurtga Ketib", "russian")
-
-async def show_diamond_arm(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "russian"
-    context.user_data['current_subject'] = "🕵️ If Qalqasing Mahbuzi"
-    context.user_data['category_type'] = "russian"
-    context.user_data["page_russian_🕵️ If Qalqasing Mahbuzi"] = 1
-    await send_paginated_content(update, context, "russian", "🕵️ If Qalqasing Mahbuzi", "russian")
-
-async def show_ten_negro_children(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "russian"
-    context.user_data['current_subject'] = "👶 O'nta Neger Bolasi"
-    context.user_data['category_type'] = "russian"
-    context.user_data["page_russian_👶 O'nta Neger Bolasi"] = 1
-    await send_paginated_content(update, context, "russian", "👶 O'nta Neger Bolasi", "russian")
-
-async def show_elusive_avengers(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "russian"
-    context.user_data['current_subject'] = "⚔️ Qo'lga Tushmas Qasoskorlar"
-    context.user_data['category_type'] = "russian"
-    context.user_data["page_russian_⚔️ Qo'lga Tushmas Qasoskorlar"] = 1
-    await send_paginated_content(update, context, "russian", "⚔️ Qo'lga Tushmas Qasoskorlar", "russian")
-
-async def show_all_russian_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "russian"
-    context.user_data['current_subject'] = "🎬 Barcha Rus Kinolari"
-    context.user_data['category_type'] = "russian"
-    context.user_data["page_russian_🎬 Barcha Rus Kinolari"] = 1
-    await send_paginated_content(update, context, "russian", "🎬 Barcha Rus Kinolari", "russian")
-
-# ==================== O'ZBEK KINOLARI KONTENTLARINI KO'RSATISH ====================
-async def show_mahalla_duv_duv_gap(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "uzbek"
-    context.user_data['current_subject'] = "🏘️ Mahallada Duv-Duv Gap"
-    context.user_data['category_type'] = "uzbek"
-    context.user_data["page_uzbek_🏘️ Mahallada Duv-Duv Gap"] = 1
-    await send_paginated_content(update, context, "uzbek", "🏘️ Mahallada Duv-Duv Gap", "uzbek")
-
-async def show_kelinlar_qozgaloni(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "uzbek"
-    context.user_data['current_subject'] = "👰 Kelinlar Qo'zg'aloni"
-    context.user_data['category_type'] = "uzbek"
-    context.user_data["page_uzbek_👰 Kelinlar Qo'zg'aloni"] = 1
-    await send_paginated_content(update, context, "uzbek", "👰 Kelinlar Qo'zg'aloni", "uzbek")
-
-async def show_abdullajon(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "uzbek"
-    context.user_data['current_subject'] = "👨 Abdullajon"
-    context.user_data['category_type'] = "uzbek"
-    context.user_data["page_uzbek_👨 Abdullajon"] = 1
-    await send_paginated_content(update, context, "uzbek", "👨 Abdullajon", "uzbek")
-
-async def show_suyinchi(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "uzbek"
-    context.user_data['current_subject'] = "😊 Suyinchi"
-    context.user_data['category_type'] = "uzbek"
-    context.user_data["page_uzbek_😊 Suyinchi"] = 1
-    await send_paginated_content(update, context, "uzbek", "😊 Suyinchi", "uzbek")
-
-async def show_chinor_duel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "uzbek"
-    context.user_data['current_subject'] = "🌳 Chinor Ositidagi Duel"
-    context.user_data['category_type'] = "uzbek"
-    context.user_data["page_uzbek_🌳 Chinor Ositidagi Duel"] = 1
-    await send_paginated_content(update, context, "uzbek", "🌳 Chinor Ositidagi Duel", "uzbek")
-
-async def show_yaratganga_shukur(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "uzbek"
-    context.user_data['current_subject'] = "🙏 Yaratganga Shukur"
-    context.user_data['category_type'] = "uzbek"
-    context.user_data["page_uzbek_🙏 Yaratganga Shukur"] = 1
-    await send_paginated_content(update, context, "uzbek", "🙏 Yaratganga Shukur", "uzbek")
-
-async def show_yor_yor(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "uzbek"
-    context.user_data['current_subject'] = "💃 Yor-Yor"
-    context.user_data['category_type'] = "uzbek"
-    context.user_data["page_uzbek_💃 Yor-Yor"] = 1
-    await send_paginated_content(update, context, "uzbek", "💃 Yor-Yor", "uzbek")
-
-async def show_tuylar_muborak(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "uzbek"
-    context.user_data['current_subject'] = "🎉 To'ylar Muborak"
-    context.user_data['category_type'] = "uzbek"
-    context.user_data["page_uzbek_🎉 To'ylar Muborak"] = 1
-    await send_paginated_content(update, context, "uzbek", "🎉 To'ylar Muborak", "uzbek")
-
-async def show_bomba(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "uzbek"
-    context.user_data['current_subject'] = "💣 Bomba"
-    context.user_data['category_type'] = "uzbek"
-    context.user_data["page_uzbek_💣 Bomba"] = 1
-    await send_paginated_content(update, context, "uzbek", "💣 Bomba", "uzbek")
-
-async def show_shum_bola(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "uzbek"
-    context.user_data['current_subject'] = "😜 Shum Bola"
-    context.user_data['category_type'] = "uzbek"
-    context.user_data["page_uzbek_😜 Shum Bola"] = 1
-    await send_paginated_content(update, context, "uzbek", "😜 Shum Bola", "uzbek")
-
-async def show_temir_xotin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "uzbek"
-    context.user_data['current_subject'] = "⚡ Temir Xotin"
-    context.user_data['category_type'] = "uzbek"
-    context.user_data["page_uzbek_⚡ Temir Xotin"] = 1
-    await send_paginated_content(update, context, "uzbek", "⚡ Temir Xotin", "uzbek")
-
-async def show_all_uzbek_classic(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "uzbek"
-    context.user_data['current_subject'] = "🎬 Barcha UZ Klassik Kinolari"
-    context.user_data['category_type'] = "uzbek"
-    context.user_data["page_uzbek_🎬 Barcha UZ Klassik Kinolari"] = 1
-    await send_paginated_content(update, context, "uzbek", "🎬 Barcha UZ Klassik Kinolari", "uzbek")
-
-# ==================== ISLOMIY KONTENTLARINI KO'RSATISH ====================
-async def show_umar_ibn_hattab(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "islamic"
-    context.user_data['current_subject'] = "📿 Umar Ibn Ali Hattob To'liq"
-    context.user_data['category_type'] = "islamic"
-    context.user_data["page_islamic_📿 Umar Ibn Ali Hattob To'liq"] = 1
-    await send_paginated_content(update, context, "islamic", "📿 Umar Ibn Ali Hattob To'liq", "islamic")
-
-async def show_nur_scattering_moon(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "islamic"
-    context.user_data['current_subject'] = "🌙 Olamga Nur Sochgan Oy To'liq"
-    context.user_data['category_type'] = "islamic"
-    context.user_data["page_islamic_🌙 Olamga Nur Sochgan Oy To'liq"] = 1
-    await send_paginated_content(update, context, "islamic", "🌙 Olamga Nur Sochgan Oy To'liq", "islamic")
-
-async def show_all_islamic_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "islamic"
-    context.user_data['current_subject'] = "🎬 Barcha Islomiy Kinolar"
-    context.user_data['category_type'] = "islamic"
-    context.user_data["page_islamic_🎬 Barcha Islomiy Kinolar"] = 1
-    await send_paginated_content(update, context, "islamic", "🎬 Barcha Islomiy Kinolar", "islamic")
-
-async def show_all_islamic_series(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "islamic"
-    context.user_data['current_subject'] = "📺 Barcha Islomiy Seriallar"
-    context.user_data['category_type'] = "islamic"
-    context.user_data["page_islamic_📺 Barcha Islomiy Seriallar"] = 1
-    await send_paginated_content(update, context, "islamic", "📺 Barcha Islomiy Seriallar", "islamic")
-
-# ==================== TURK KONTENTLARINI KO'RSATISH ====================
-async def show_sultan_abdulhamid(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "turkish"
-    context.user_data['current_subject'] = "👑 Sulton Abdulhamidhon"
-    context.user_data['category_type'] = "turkish"
-    context.user_data["page_turkish_👑 Sulton Abdulhamidhon"] = 1
-    await send_paginated_content(update, context, "turkish", "👑 Sulton Abdulhamidhon", "turkish")
-
-async def show_wolves_lair(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "turkish"
-    context.user_data['current_subject'] = "🐺 Qashqirlar Makoni"
-    context.user_data['category_type'] = "turkish"
-    context.user_data["page_turkish_🐺 Qashqirlar Makoni"] = 1
-    await send_paginated_content(update, context, "turkish", "🐺 Qashqirlar Makoni", "turkish")
-
-async def show_all_turkish_series(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "turkish"
-    context.user_data['current_subject'] = "📺 Barcha Turk Seriallari"
-    context.user_data['category_type'] = "turkish"
-    context.user_data["page_turkish_📺 Barcha Turk Seriallari"] = 1
-    await send_paginated_content(update, context, "turkish", "📺 Barcha Turk Seriallari", "turkish")
-
-# ==================== BOLALAR KONTENTLARINI KO'RSATISH ====================
-async def show_home_alone(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "kids"
-    context.user_data['current_subject'] = "👦 Bola Uyda Yolg'iz 1-3"
-    context.user_data['category_type'] = "kids"
-    context.user_data["page_kids_👦 Bola Uyda Yolg'iz 1-3"] = 1
-    await send_paginated_content(update, context, "kids", "👦 Bola Uyda Yolg'iz 1-3", "kids")
-
-async def show_flying_david(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "kids"
-    context.user_data['current_subject'] = "✈️ Uchuvchi Devid"
-    context.user_data['category_type'] = "kids"
-    context.user_data["page_kids_✈️ Uchuvchi Devid"] = 1
-    await send_paginated_content(update, context, "kids", "✈️ Uchuvchi Devid", "kids")
-
-async def show_harry_potter(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "kids"
-    context.user_data['current_subject'] = "⚡ Garry Poter 1-4"
-    context.user_data['category_type'] = "kids"
-    context.user_data["page_kids_⚡ Garry Poter 1-4"] = 1
-    await send_paginated_content(update, context, "kids", "⚡ Garry Poter 1-4", "kids")
-
-async def show_all_kids_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "kids"
-    context.user_data['current_subject'] = "🎬 Barcha Bolalar Kinolari"
-    context.user_data['category_type'] = "kids"
-    context.user_data["page_kids_🎬 Barcha Bolalar Kinolari"] = 1
-    await send_paginated_content(update, context, "kids", "🎬 Barcha Bolalar Kinolari", "kids")
-
-# ==================== MULTFILMLAR KONTENTLARINI KO'RSATISH ====================
-async def show_ice_age(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "cartoons"
-    context.user_data['current_subject'] = "❄️ Muzlik Davri 1-3"
-    context.user_data['category_type'] = "cartoons"
-    context.user_data["page_cartoons_❄️ Muzlik Davri 1-3"] = 1
-    await send_paginated_content(update, context, "cartoons", "❄️ Muzlik Davri 1-3", "cartoons")
-
-async def show_tom_jerry(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "cartoons"
-    context.user_data['current_subject'] = "🐭 Tom & Jerry"
-    context.user_data['category_type'] = "cartoons"
-    context.user_data["page_cartoons_🐭 Tom & Jerry"] = 1
-    await send_paginated_content(update, context, "cartoons", "🐭 Tom & Jerry", "cartoons")
-
-async def show_winnie_pooh(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "cartoons"
-    context.user_data['current_subject'] = "🐻 Bori va Quyon"
-    context.user_data['category_type'] = "cartoons"
-    context.user_data["page_cartoons_🐻 Bori va Quyon"] = 1
-    await send_paginated_content(update, context, "cartoons", "🐻 Bori va Quyon", "cartoons")
-
-async def show_bear_and_masha(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "cartoons"
-    context.user_data['current_subject'] = "🍯 Ayiq va Masha"
-    context.user_data['category_type'] = "cartoons"
-    context.user_data["page_cartoons_🍯 Ayiq va Masha"] = 1
-    await send_paginated_content(update, context, "cartoons", "🍯 Ayiq va Masha", "cartoons")
-
-async def show_kungfu_panda(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "cartoons"
-    context.user_data['current_subject'] = "🐼 Kungfu Panda 1-4"
-    context.user_data['category_type'] = "cartoons"
-    context.user_data["page_cartoons_🐼 Kungfu Panda 1-4"] = 1
-    await send_paginated_content(update, context, "cartoons", "🐼 Kungfu Panda 1-4", "cartoons")
-
-async def show_mustang(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "cartoons"
-    context.user_data['current_subject'] = "🐎 Mustang"
-    context.user_data['category_type'] = "cartoons"
-    context.user_data["page_cartoons_🐎 Mustang"] = 1
-    await send_paginated_content(update, context, "cartoons", "🐎 Mustang", "cartoons")
-
-async def show_all_cartoons(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "cartoons"
-    context.user_data['current_subject'] = "🎬 Barcha Multfilmlar"
-    context.user_data['category_type'] = "cartoons"
-    context.user_data["page_cartoons_🎬 Barcha Multfilmlar"] = 1
-    await send_paginated_content(update, context, "cartoons", "🎬 Barcha Multfilmlar", "cartoons")
-
-# ==================== KOREYS KONTENTLARINI KO'RSATISH ====================
-async def show_criminals_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "korean_movies"
-    context.user_data['current_subject'] = "🏙️ Jinoyatchilar Shahri 1-4"
-    context.user_data['category_type'] = "korean_movies"
-    context.user_data["page_korean_movies_🏙️ Jinoyatchilar Shahri 1-4"] = 1
-    await send_paginated_content(update, context, "korean_movies", "🏙️ Jinoyatchilar Shahri 1-4", "korean_movies")
-
-async def show_all_korean_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "korean_movies"
-    context.user_data['current_subject'] = "🎬 Barcha Koreys Kinolari"
-    context.user_data['category_type'] = "korean_movies"
-    context.user_data["page_korean_movies_🎬 Barcha Koreys Kinolari"] = 1
-    await send_paginated_content(update, context, "korean_movies", "🎬 Barcha Koreys Kinolari", "korean_movies")
-
-async def show_winter_sonata(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "korean_series"
-    context.user_data['current_subject'] = "❄️ Qish Sonatasi 1-20"
-    context.user_data['category_type'] = "korean_series"
-    context.user_data["page_korean_series_❄️ Qish Sonatasi 1-20"] = 1
-    await send_paginated_content(update, context, "korean_series", "❄️ Qish Sonatasi 1-20", "korean_series")
-
-async def show_summer_fever(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "korean_series"
-    context.user_data['current_subject'] = "☀️ Yoz Ifori 1-20"
-    context.user_data['category_type'] = "korean_series"
-    context.user_data["page_korean_series_☀️ Yoz Ifori 1-20"] = 1
-    await send_paginated_content(update, context, "korean_series", "☀️ Yoz Ifori 1-20", "korean_series")
-
-async def show_and_bank(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "korean_series"
-    context.user_data['current_subject'] = "🏦 Va Bank 1-20"
-    context.user_data['category_type'] = "korean_series"
-    context.user_data["page_korean_series_🏦 Va Bank 1-20"] = 1
-    await send_paginated_content(update, context, "korean_series", "🏦 Va Bank 1-20", "korean_series")
-
-async def show_jumong(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "korean_series"
-    context.user_data['current_subject'] = "👑 Jumong Barcha Qismlar"
-    context.user_data['category_type'] = "korean_series"
-    context.user_data["page_korean_series_👑 Jumong Barcha Qismlar"] = 1
-    await send_paginated_content(update, context, "korean_series", "👑 Jumong Barcha Qismlar", "korean_series")
-
-async def show_sea_ruler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "korean_series"
-    context.user_data['current_subject'] = "⚓ Dengiz Hukumdori Barcha Qismlar"
-    context.user_data['category_type'] = "korean_series"
-    context.user_data["page_korean_series_⚓ Dengiz Hukumdori Barcha Qismlar"] = 1
-    await send_paginated_content(update, context, "korean_series", "⚓ Dengiz Hukumdori Barcha Qismlar", "korean_series")
-
-# ==================== QALBIM CHECHAGI HANDLERI ====================
-async def show_heartbeat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Qalbim Chechagi serialini ko'rsatish"""
-    context.user_data['current_category'] = "korean_series"
-    context.user_data['current_subject'] = "💖 Qalbim Chechagi 1-17"
-    context.user_data['category_type'] = "korean_series"
-    context.user_data["page_korean_series_💖 Qalbim Chechagi 1-17"] = 1
-    await send_paginated_content(update, context, "korean_series", "💖 Qalbim Chechagi 1-17", "korean_series")
-
-async def show_all_korean_series(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "korean_series"
-    context.user_data['current_subject'] = "📺 Barcha Koreys Seriallari"
-    context.user_data['category_type'] = "korean_series"
-    context.user_data["page_korean_series_📺 Barcha Koreys Seriallari"] = 1
-    await send_paginated_content(update, context, "korean_series", "📺 Barcha Koreys Seriallari", "korean_series")
-
-# ==================== MUSIQA KONTENTLARINI KO'RSATISH ====================
-async def show_uzbek_music(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "music"
-    context.user_data['current_subject'] = "🎵 O'zbek Musiqalari"
-    context.user_data['category_type'] = "music"
-    context.user_data["page_music_🎵 O'zbek Musiqalari"] = 1
-    await send_paginated_content(update, context, "music", "🎵 O'zbek Musiqalari", "music")
-
-async def show_russian_music(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "music"
-    context.user_data['current_subject'] = "🎶 Rus Musiqalari"
-    context.user_data['category_type'] = "music"
-    context.user_data["page_music_🎶 Rus Musiqalari"] = 1
-    await send_paginated_content(update, context, "music", "🎶 Rus Musiqalari", "music")
-
-async def show_hindi_music(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "music"
-    context.user_data['current_subject'] = "🎼 Hind Musiqalari"
-    context.user_data['category_type'] = "music"
-    context.user_data["page_music_🎼 Hind Musiqalari"] = 1
-    await send_paginated_content(update, context, "music", "🎼 Hind Musiqalari", "music")
-
-async def show_turkish_music(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "music"
-    context.user_data['current_subject'] = "🎧 Turk Musiqalari"
-    context.user_data['category_type'] = "music"
-    context.user_data["page_music_🎧 Turk Musiqalari"] = 1
-    await send_paginated_content(update, context, "music", "🎧 Turk Musiqalari", "music")
-
-async def show_korean_music(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "music"
-    context.user_data['current_subject'] = "🎤 Koreys Musiqalari"
-    context.user_data['category_type'] = "music"
-    context.user_data["page_music_🎤 Koreys Musiqalari"] = 1
-    await send_paginated_content(update, context, "music", "🎤 Koreys Musiqalari", "music")
-
-async def show_all_music(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "music"
-    context.user_data['current_subject'] = "🎹 Barcha Musiqalar"
-    context.user_data['category_type'] = "music"
-    context.user_data["page_music_🎹 Barcha Musiqalar"] = 1
-    await send_paginated_content(update, context, "music", "🎹 Barcha Musiqalar", "music")
-    
-    # ==================== HIND KONTENTLARINI KO'RSATISH FUNKSIYALARI ====================
-async def show_shahrukh_khan_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "hindi"
-    context.user_data['current_subject'] = "🤴 Shakruhkhan Kinolari"
-    context.user_data['category_type'] = "hindi"
-    context.user_data["page_hindi_🤴 Shakruhkhan Kinolari"] = 1
-    await send_paginated_content(update, context, "hindi", "🤴 Shakruhkhan Kinolari", "hindi")
-
-async def show_amir_khan_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "hindi"
-    context.user_data['current_subject'] = "🎯 Amirkhan Kinolari"
-    context.user_data['category_type'] = "hindi"
-    context.user_data["page_hindi_🎯 Amirkhan Kinolari"] = 1
-    await send_paginated_content(update, context, "hindi", "🎯 Amirkhan Kinolari", "hindi")
-
-async def show_akshay_kumar_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "hindi"
-    context.user_data['current_subject'] = "🦸 Akshay Kumar Kinolari"
-    context.user_data['category_type'] = "hindi"
-    context.user_data["page_hindi_🦸 Akshay Kumar Kinolari"] = 1
-    await send_paginated_content(update, context, "hindi", "🦸 Akshay Kumar Kinolari", "hindi")
-
-async def show_salman_khan_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "hindi"
-    context.user_data['current_subject'] = "👑 Salmonkhan Kinolari"
-    context.user_data['category_type'] = "hindi"
-    context.user_data["page_hindi_👑 Salmonkhan Kinolari"] = 1
-    await send_paginated_content(update, context, "hindi", "👑 Salmonkhan Kinolari", "hindi")
-
-async def show_saif_ali_khan_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "hindi"
-    context.user_data['current_subject'] = "🌟 SayfAlihon Kinolari"
-    context.user_data['category_type'] = "hindi"
-    context.user_data["page_hindi_🌟 SayfAlihon Kinolari"] = 1
-    await send_paginated_content(update, context, "hindi", "🌟 SayfAlihon Kinolari", "hindi")
-
-async def show_amitabh_bachchan_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "hindi"
-    context.user_data['current_subject'] = "🎭 Amitahbachchan Kinolari"
-    context.user_data['category_type'] = "hindi"
-    context.user_data["page_hindi_🎭 Amitahbachchan Kinolari"] = 1
-    await send_paginated_content(update, context, "hindi", "🎭 Amitahbachchan Kinolari", "hindi")
-
-async def show_mithun_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "hindi"
-    context.user_data['current_subject'] = "💃 MethunChakraborty Kinolari"
-    context.user_data['category_type'] = "hindi"
-    context.user_data["page_hindi_💃 MethunChakraborty Kinolari"] = 1
-    await send_paginated_content(update, context, "hindi", "💃 MethunChakraborty Kinolari", "hindi")
-
-async def show_dharmendra_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "hindi"
-    context.user_data['current_subject'] = "👨‍🦳 Dharmendra Kinolari"
-    context.user_data['category_type'] = "hindi"
-    context.user_data["page_hindi_👨‍🦳 Dharmendra Kinolari"] = 1
-    await send_paginated_content(update, context, "hindi", "👨‍🦳 Dharmendra Kinolari", "hindi")
-
-async def show_raj_kapur_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "hindi"
-    context.user_data['current_subject'] = "🎬 Raj Kapur Kinolari"
-    context.user_data['category_type'] = "hindi"
-    context.user_data["page_hindi_🎬 Raj Kapur Kinolari"] = 1
-    await send_paginated_content(update, context, "hindi", "🎬 Raj Kapur Kinolari", "hindi")
-
-async def show_other_hindi_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['current_category'] = "hindi"
-    context.user_data['current_subject'] = "📀 Boshqa Hind Kinolari"
-    context.user_data['category_type'] = "hindi"
-    context.user_data["page_hindi_📀 Boshqa Hind Kinolari"] = 1
-    await send_paginated_content(update, context, "hindi", "📀 Boshqa Hind Kinolari", "hindi")
-    
-# ==================== DEBUG COMMAND ====================
-async def debug_content(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Kontentlarni debug qilish"""
-    user_id = update.effective_user.id
-    admin_panel = AdminPanel()
-    
-    if not await admin_panel.check_admin(user_id):
-        await update.message.reply_text("❌ Siz admin emassiz!")
         return
     
-    all_content = db.get_all_content()
+    keyboard = []
+    for movie in movies:
+        # 11 TA USTUNNI OLISH
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
     
-    if all_content:
-        debug_info = f"📊 Database da {len(all_content)} ta kontent:\n\n"
-        for content in all_content[:10]:
-            debug_info += f"ID: {content[0]}\nNomi: {content[1]}\nKategoriya: {content[3]}\nFayl turi: {content[5]}\n\n"
-        
-        await update.message.reply_text(debug_info)
-    else:
-        await update.message.reply_text("❌ Database da hech qanday kontent yo'q")
-
-# ==================== BAZA HOLATINI TEKSHIRISH ====================
-async def check_database(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Database holatini tekshirish"""
-    user_id = update.effective_user.id
-    admin_panel = AdminPanel()
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
     
-    if not await admin_panel.check_admin(user_id):
-        await update.message.reply_text("❌ Siz admin emassiz!")
-        return
-    
-    try:
-        users = db.get_all_users()
-        all_content = db.get_all_content()
-        
-        status_text = (
-            "📊 Database Holati:\n\n"
-            f"👥 Foydalanuvchilar: {len(users)} ta\n"
-            f"🎬 Kontentlar: {len(all_content)} ta\n\n"
-            f"✅ Database ishlayapti"
-        )
-        
-        await update.message.reply_text(status_text)
-        
-    except Exception as e:
-        await update.message.reply_text(f"❌ Database xatosi: {e}")
-
-# ==================== KONTENTLARNI TEKSHIRISH COMMAND ====================
-async def check_uzbek_content(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """O'zbek kinolarini tekshirish"""
-    user_id = update.effective_user.id
-    admin_panel = AdminPanel()
-    
-    if not await admin_panel.check_admin(user_id):
-        await update.message.reply_text("❌ Siz admin emassiz!")
-        return
-    
-    contents = db.get_content_by_subject("uzbek", "🏘️ Mahallada Duv-Duv Gap")
-    
-    if contents:
-        content_info = f"📊 🏘️ Mahallada Duv-Duv Gap kontentlari ({len(contents)} ta):\n\n"
-        for content in contents:
-            content_info += f"🎬 {content[1]}\n📁 {content[3]}\n📄 {content[5]}\n\n"
-        
-        await update.message.reply_text(content_info)
-    else:
-        await update.message.reply_text("❌ Hech qanday kontent topilmadi")
-
-# ==================== QIDIRUV HANDLERLARI ====================
-async def search_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🔍 Kino qidirish:\nIltimos kino nomini kiriting:",
-        reply_markup=ReplyKeyboardMarkup([["🔙 Asosiy menyu"]], resize_keyboard=True)
-    )
-
-async def handle_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.message.text
-    if query != "🔙 Asosiy menyu":
-        results = db.search_content(query)
-        if results:
-            for item in results[:3]:
-                await update.message.reply_text("🎬 " + item[1] + "\n📝 " + item[2])
-        else:
-            await update.message.reply_text("❌ '" + query + "' bo'yicha hech narsa topilmadi")
-    else:
-        await update.message.reply_text("🏠 Asosiy menyu:", reply_markup=get_main_menu())
-
-# ==================== PULLIK HIZMATLAR HANDLERLARI ====================
-async def show_premium_services(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "💼 Pullik Hizmatlar bo'limi\n\n"
-        "Quyidagi tugmalardan birini tanlang:",
-        reply_markup=get_premium_menu()
+    await message.answer(
+        f"🎭 **Hollywood Kinolari**\n\n"
+        f"Jami: {len(movies)} ta kino\n\n"
+        f"Kerakli kinoni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     ) 
     
-# ==================== YANGI: PULLIK KONTENT KATEGORIYASINI KO'RSATISH ====================
-async def show_premium_content_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Pullik kontent kategoriyasini ko'rsatish"""
-    category_map = {
-        "🎬 Pullik Kinolar": "premium_movies",
-        "📺 Pullik Seriallar": "premium_series",
-        "🐰 Pullik Multfilmlar": "premium_cartoons", 
-        "🎵 Pullik Musiqalar": "premium_music"
-    }
-    
-    selected_category = update.message.text
-    premium_category = category_map.get(selected_category)
-    
-    if premium_category:
-        # Pullik kontentlarni olish
-        contents = db.get_premium_content_by_category("premium", premium_category)
         
-        if contents:
-            content_list = "💰 *Pullik Kontentlar:*\n\n"
-            
-            for content in contents[:10]:  # Faqat birinchi 10 tasi
-                content_list += f"🎬 {content[3]}\n💰 {content[5]:,} so'm\n\n"
-            
-            if len(contents) > 10:
-                content_list += f"... va yana {len(contents) - 10} ta kontent"
-            
-            await update.message.reply_text(
-                content_list + "\n\n⬇️ Kontentni tanlang va to'lov qiling:",
-                reply_markup=get_premium_content_selection_menu(contents),
-                parse_mode='Markdown'
-            )
-        else:
-            await update.message.reply_text(
-                f"❌ Hozircha {selected_category} mavjud emas.\n\n"
-                "⏳ Tez orada qo'shiladi.",
-                reply_markup=get_premium_menu_simple()
-            )
+# ==============================================================================
+# -*-*- BARCHA BO'LIMLAR UCHUN KINO KO'RSATISH -*-*-
+# ==============================================================================
 
-def get_premium_content_selection_menu(contents):
-    """Pullik kontentlarni tanlash menyusi"""
+@dp.message(F.text == "🎬 Hind Filmlari")
+async def show_indian_movies(message: types.Message):
+    """Hind filmlarini ko'rsatish"""
+    movies = db.get_movies_by_category("🎬 Hind")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kinolar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
     keyboard = []
+    for movie in movies:
+        # 11 TA USTUN
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
     
-    for content in contents[:5]:  # Faqat birinchi 5 tasi
-        keyboard.append([f"💰 {content[3]}"])
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
     
-    keyboard.append(["🔙 Orqaga", "🏠 Asosiy menyu"])
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)    
-    
-# ==================== YANGI: PULLIK KONTENT HANDLERLARI ====================
-
-async def show_paid_movies_purchase(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Kino sotib olish menyusi"""
-    text, reply_markup = get_paid_content_menu("movie")
-    await update.message.reply_text(text, reply_markup=reply_markup)
-    context.user_data['payment_type'] = 'movie'
-
-async def show_paid_series_purchase(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Serial sotib olish menyusi"""
-    text, reply_markup = get_paid_content_menu("series")
-    await update.message.reply_text(text, reply_markup=reply_markup)
-    context.user_data['payment_type'] = 'series'
-
-async def show_paid_cartoons_purchase(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Multfilm sotib olish menyusi"""
-    text, reply_markup = get_paid_content_menu("cartoon")
-    await update.message.reply_text(text, reply_markup=reply_markup)
-    context.user_data['payment_type'] = 'cartoon'
-
-async def handle_paid_content_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Pullik kontent tanlash"""
-    content_name = update.message.text.replace("💰 ", "")
-    payment_type = context.user_data.get('payment_type', 'movie')
-    
-    # Narxlarni belgilash
-    prices = {
-        'movie': 30000,
-        'series': 10000, 
-        'cartoon': 30000
-    }
-    
-    price = prices.get(payment_type, 30000)
-    
-    context.user_data['selected_content'] = content_name
-    context.user_data['content_price'] = price
-    
-    await update.message.reply_text(
-        f"💳 *To'lov Ma'lumotlari:*\n\n"
-        f"🎬 Kontent: {content_name}\n"
-        f"💰 Narx: {price:,} so'm\n"
-        f"📋 Turi: {'Kino' if payment_type == 'movie' else 'Serial' if payment_type == 'series' else 'Multfilm'}\n\n"
-        f"💳 *To'lov kartasi:* 8600 1104 7759 4067\n\n"
-        f"To'lov qilgach, chek suratini yuboring yoki 'To\'lov qilish' tugmasini bosing:",
-        reply_markup=get_payment_confirmation_menu(),
-        parse_mode='Markdown'
+    await message.answer(
+        f"🎬 **Hind Filmlari**\n\n"
+        f"Jami: {len(movies)} ta kino\n\n"
+        f"Kerakli kinoni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
 
-async def handle_payment_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """To'lov tasdiqlash"""
-    await update.message.reply_text(
-        "📸 Iltimos, to'lov cheki suratini yuboring:\n\n"
-        "💡 *Eslatma:* Chekda quyidagilar ko'rinishi kerak:\n"
-        "• To'lov summasi\n" 
-        "• Karta raqami (oxirgi 4 ta raqam)\n"
-        "• Sana va vaqt\n\n"
-        "Yoki chek ma'lumotlarini matn shaklida yuboring:",
-        reply_markup=ReplyKeyboardMarkup([["🔙 Orqaga"]], resize_keyboard=True),
-        parse_mode='Markdown'
-    )
-    context.user_data['waiting_for_receipt'] = True
-
-# ==================== TO'LOV CHEKINI QAYTA ISHLASH ====================
-async def handle_payment_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """To'lov chekini qayta ishlash"""
+@dp.message(F.text == "📺 Hind Seriallari")
+async def show_indian_series(message: types.Message):
+    """Hind seriallarini ko'rsatish"""
+    movies = db.get_movies_by_category("📺 Hind")
     
-    # Agar admin kontent qo'shish jarayonida bo'lsa, bu xabarni e'tiborsiz qoldirish
-    if context.user_data.get('waiting_for_content_title') or context.user_data.get('waiting_for_content_description'):
-        # Bu xabarni admin kontent qo'shish jarayonida qayta ishlash
-        await handle_admin_messages(update, context)
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kontentlar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
         return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"📺 **Hind Seriallari**\n\n"
+        f"Jami: {len(movies)} ta kontent\n\n"
+        f"Kerakli serialni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "🎥 Rus Kinolari")
+async def show_russian_movies(message: types.Message):
+    """Rus kinolarini ko'rsatish"""
+    movies = db.get_movies_by_category("🎥 Rus")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kinolar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"🎥 **Rus Kinolari**\n\n"
+        f"Jami: {len(movies)} ta kino\n\n"
+        f"Kerakli kinoni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "📟 Rus Seriallari")
+async def show_russian_series(message: types.Message):
+    """Rus seriallarini ko'rsatish"""
+    movies = db.get_movies_by_category("📟 Rus")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kontentlar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"📟 **Rus Seriallari**\n\n"
+        f"Jami: {len(movies)} ta kontent\n\n"
+        f"Kerakli serialni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "🎞️ O'zbek Kinolari")
+async def show_uzbek_movies(message: types.Message):
+    """O'zbek kinolarini ko'rsatish"""
+    movies = db.get_movies_by_category("🎞️ O'zbek")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kinolar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"🎞️ **O'zbek Kinolari**\n\n"
+        f"Jami: {len(movies)} ta kino\n\n"
+        f"Kerakli kinoni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "📱 O'zbek Seriallari")
+async def show_uzbek_series(message: types.Message):
+    """O'zbek seriallarini ko'rsatish"""
+    movies = db.get_movies_by_category("📱 O'zbek")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kontentlar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"📱 **O'zbek Seriallari**\n\n"
+        f"Jami: {len(movies)} ta kontent\n\n"
+        f"Kerakli serialni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "🕌 Islomiy Kinolar")
+async def show_islamic_movies(message: types.Message):
+    """Islomiy kinolarni ko'rsatish"""
+    movies = db.get_movies_by_category("🕌 Islomiy")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kinolar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"🕌 **Islomiy Kinolar**\n\n"
+        f"Jami: {len(movies)} ta kino\n\n"
+        f"Kerakli kinoni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "📖 Islomiy Seriallar")
+async def show_islamic_series(message: types.Message):
+    """Islomiy seriallarni ko'rsatish"""
+    movies = db.get_movies_by_category("📖 Islomiy")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kontentlar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"📖 **Islomiy Seriallar**\n\n"
+        f"Jami: {len(movies)} ta kontent\n\n"
+        f"Kerakli serialni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "🇹🇷 Turk Kinolari")
+async def show_turkish_movies(message: types.Message):
+    """Turk kinolarini ko'rsatish"""
+    movies = db.get_movies_by_category("🇹🇷 Turk")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kinolar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"🇹🇷 **Turk Kinolari**\n\n"
+        f"Jami: {len(movies)} ta kino\n\n"
+        f"Kerakli kinoni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "📺 Turk Seriallari")
+async def show_turkish_series(message: types.Message):
+    """Turk seriallarini ko'rsatish"""
+    movies = db.get_movies_by_category("📺 Turk")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kontentlar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"📺 **Turk Seriallari**\n\n"
+        f"Jami: {len(movies)} ta kontent\n\n"
+        f"Kerakli serialni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "👶 Bolalar Kinolari")
+async def show_kids_movies(message: types.Message):
+    """Bolalar kinolarini ko'rsatish"""
+    movies = db.get_movies_by_category("👶 Bolalar")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kinolar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"👶 **Bolalar Kinolari**\n\n"
+        f"Jami: {len(movies)} ta kino\n\n"
+        f"Kerakli kinoni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "🐰 Bolalar Multfilmlari")
+async def show_kids_cartoons(message: types.Message):
+    """Bolalar multfilmlarini ko'rsatish"""
+    movies = db.get_movies_by_category("🐰 Bolalar")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda multfilmlar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"🐰 **Bolalar Multfilmlari**\n\n"
+        f"Jami: {len(movies)} ta multfilm\n\n"
+        f"Kerakli multfilmni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "🇰🇷 Koreys Kinolari")
+async def show_korean_movies(message: types.Message):
+    """Koreys kinolarini ko'rsatish"""
+    movies = db.get_movies_by_category("🇰🇷 Koreys")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kinolar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"🇰🇷 **Koreys Kinolari**\n\n"
+        f"Jami: {len(movies)} ta kino\n\n"
+        f"Kerakli kinoni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "📡 Koreys Seriallari")
+async def show_korean_series(message: types.Message):
+    """Koreys seriallarini ko'rsatish"""
+    movies = db.get_movies_by_category("📡 Koreys")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kontentlar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"📡 **Koreys Seriallari**\n\n"
+        f"Jami: {len(movies)} ta kontent\n\n"
+        f"Kerakli serialni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "🎯 Qisqa Filmlar")
+async def show_short_films(message: types.Message):
+    """Qisqa filmlarni ko'rsatish"""
+    movies = db.get_movies_by_category("🎯 Qisqa")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda filmlar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"🎯 **Qisqa Filmlar**\n\n"
+        f"Jami: {len(movies)} ta film\n\n"
+        f"Kerakli filmni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "🎤 Konsert Dasturlari")
+async def show_concert_programs(message: types.Message):
+    """Konsert dasturlarini ko'rsatish"""
+    movies = db.get_movies_by_category("🎤 Konsert")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda konsertlar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"🎤 **Konsert Dasturlari**\n\n"
+        f"Jami: {len(movies)} ta konsert\n\n"
+        f"Kerakli konsertni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )   
+
+# ==============================================================================
+# -*-*- BO'LIMLAR ICHIDAGI KLAVIATURALAR -*-*-
+# ==============================================================================
+
+def hollywood_movies_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🎬 Mel Gibson Kinolari"), KeyboardButton(text="💪 Arnold Schwarzenegger Kinolari")],
+            [KeyboardButton(text="🥊 Sylvester Stallone Kinolari"), KeyboardButton(text="🚗 Jason Statham Kinolari")],
+            [KeyboardButton(text="🐲 Jeki Chan Kinolari"), KeyboardButton(text="🥋 Skod Adkins Kinolari")],
+            [KeyboardButton(text="🎭 Denzil Washington Kinolari"), KeyboardButton(text="💥 Jan Clod Van Dam Kinolari")],
+            [KeyboardButton(text="👊 Brus lee Kinolari"), KeyboardButton(text="😂 Jim Cerry Kinolari")],
+            [KeyboardButton(text="🏴‍☠️ Jonni Depp Kinolari"), KeyboardButton(text="🥋 Jet Lee Kinolari")],
+            [KeyboardButton(text="👊 Mark Dacascos Kinolari"), KeyboardButton(text="🎬 Bred Pitt Kinolari")],
+            [KeyboardButton(text="🎭 Leonardo Dicaprio Kinolari"), KeyboardButton(text="📽️ Barcha Hollywood Kinolari")],
+            [KeyboardButton(text="🔙 Bo'limlarga qaytish")],
+        ],
+        resize_keyboard=True
+    )
+
+def indian_movies_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🤴 Shakruhkhan Kinolari"), KeyboardButton(text="🎬 Amirkhan Kinolari")],
+            [KeyboardButton(text="💪 Akshay Kumar Kinolari"), KeyboardButton(text="👑 Salmonkhan Kinolari")],
+            [KeyboardButton(text="🌟 SayfAlihon Kinolari"), KeyboardButton(text="🎭 Amitahbachchan Kinolari")],
+            [KeyboardButton(text="🔥 MethunChakraborty Kinolari"), KeyboardButton(text="🎥 Dharmendra Kinolari")],
+            [KeyboardButton(text="🎞️ Raj Kapur Kinolari"), KeyboardButton(text="🚗 Tezlik 1/2/3 Qismlar")],
+            [KeyboardButton(text="📀 Boshqa Hind Kinolari"), KeyboardButton(text="🔙 Bo'limlarga qaytish")],
+        ],
+        resize_keyboard=True
+    )
+
+def russian_movies_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="💼 Ishdagi Ishq"), KeyboardButton(text="🎭 Shurikning Sarguzashtlari")],
+            [KeyboardButton(text="👑 Ivan Vasilivich"), KeyboardButton(text="🔥 Gugurtga Ketib")],
+            [KeyboardButton(text="🕵️ If Qalqasing Mahbuzi"), KeyboardButton(text="👶 O'nta Neger Bolasi")],
+            [KeyboardButton(text="⚔️ Qo'lga Tushmas Qasoskorlar"), KeyboardButton(text="📀 Barcha Rus Kinolari")],
+            [KeyboardButton(text="🔙 Bo'limlarga qaytish")],
+        ],
+        resize_keyboard=True
+    )
+
+def russian_series_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🎮 Igra Seriali"), KeyboardButton(text="🚗 Bumer Seriali")],
+            [KeyboardButton(text="👥 Birgada Seriali"), KeyboardButton(text="📺 Barcha Rus Seriallari")],
+            [KeyboardButton(text="🔙 Bo'limlarga qaytish")],
+        ],
+        resize_keyboard=True
+    )
+
+def kids_movies_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🏠 Bola Uyda Yolg'iz 1"), KeyboardButton(text="🏠 Bola Uyda Yolg'iz 2")],
+            [KeyboardButton(text="🏠 Bola Uyda Yolg'iz 3"), KeyboardButton(text="✈️ Uchubchi Devid")],
+            [KeyboardButton(text="⚡ Garry Poter 1"), KeyboardButton(text="⚡ Garry Poter 2")],
+            [KeyboardButton(text="⚡ Garry Poter 3"), KeyboardButton(text="⚡ Garry Poter 4")],
+            [KeyboardButton(text="🎬 Barcha Bolalar Kinolari"), KeyboardButton(text="🔙 Bo'limlarga qaytish")],
+        ],
+        resize_keyboard=True
+    )
+
+def kids_cartoons_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="❄️ Muzlik Davri 1"), KeyboardButton(text="❄️ Muzlik Davri 2")],
+            [KeyboardButton(text="❄️ Muzlik Davri 3"), KeyboardButton(text="🐭 Tom & Jerry")],
+            [KeyboardButton(text="🐻 Bori va Quyon"), KeyboardButton(text="🐻 Ayiq va Masha")],
+            [KeyboardButton(text="🐼 Kungfu Panda 1"), KeyboardButton(text="🐼 Kungfu Panda 2")],
+            [KeyboardButton(text="🐼 Kungfu Panda 3"), KeyboardButton(text="🐼 Kungfu Panda 4")],
+            [KeyboardButton(text="🐎 Mustang"), KeyboardButton(text="📀 Barcha Multfilmlar")],
+            [KeyboardButton(text="🔙 Bo'limlarga qaytish")],
+        ],
+        resize_keyboard=True
+    )
+
+def islamic_series_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🕌 Uvays Karoniy"), KeyboardButton(text="👑 Umar ibn Hattob")],
+            [KeyboardButton(text="🌙 Olamga Nur Soshgan Oy"), KeyboardButton(text="📺 Barcha Islomiy Seriallar")],
+            [KeyboardButton(text="🔙 Bo'limlarga qaytish")],
+        ],
+        resize_keyboard=True
+    )
+
+def korean_series_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="❄️ Qish Sonatasi 1-20"), KeyboardButton(text="☀️ Yoz Ifori 1-20")],
+            [KeyboardButton(text="💖 Qalbim Chechagi 1-17"), KeyboardButton(text="🏦 Va Bank 1-20")],
+            [KeyboardButton(text="👑 Jumong 1-20"), KeyboardButton(text="⚓ Dengiz Hukumdori 1-20")],
+            [KeyboardButton(text="📺 Barcha Koreys Seriallari"), KeyboardButton(text="🔙 Bo'limlarga qaytish")],
+        ],
+        resize_keyboard=True
+    )
+
+def korean_movies_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🏙️ Jinoyatchilar Shahri 1"), KeyboardButton(text="🏙️ Jinoyatchilar Shahri 2")],
+            [KeyboardButton(text="🏙️ Jinoyatchilar Shahri 3"), KeyboardButton(text="🏙️ Jinoyatchilar Shahri 4")],
+            [KeyboardButton(text="🎬 Barcha Koreys Kinolari"), KeyboardButton(text="🔙 Bo'limlarga qaytish")],
+        ],
+        resize_keyboard=True
+    )
+
+def turkish_series_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="👑 Sulton Abdulhamidhon"), KeyboardButton(text="🐺 Qashqirlar Makoni")],
+            [KeyboardButton(text="📺 Barcha Turk Seriallari"), KeyboardButton(text="🔙 Bo'limlarga qaytish")],
+        ],
+        resize_keyboard=True
+    )
+
+# ==============================================================================
+# -*-*- NAVIGATSIYA HANDLERLARI -*-*-
+# ==============================================================================
+
+@dp.message(F.text == "🔙 Bo'limlarga qaytish")
+async def back_to_sections(message: types.Message):
+    await message.answer(
+        "📁 Bo'limlar menyusiga qaytingiz:",
+        reply_markup=sections_keyboard()
+    )
+
+@dp.message(F.text == "🔙 Asosiy Menyu")
+async def back_to_main(message: types.Message):
+    await message.answer(
+        "Asosiy menyuga qaytingiz:",
+        reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
+    )
+
+@dp.message(F.text == "🔙 Pullik Hizmatlarga qaytish")
+async def back_to_premium_services(message: types.Message):
+    await message.answer(
+        "💵 Pullik xizmatlar menyusiga qaytingiz:",
+        reply_markup=premium_services_keyboard()
+    )
+
+# ==============================================================================
+# -*-*- PULLIK HIZMATLAR HANDLERLARI -*-*-
+# ==============================================================================
+
+@dp.message(F.text == "💎 Premium Obuna")
+async def premium_subscription(message: types.Message):
+    await message.answer(
+        "💎 **Premium Obuna - Obuna Bo'lish Tartibi**\n\n"
         
-    # Agar foydalanuvchi to'lov cheki yuborayotgan bo'lsa
-    if context.user_data.get('waiting_for_receipt'):
-        user_id = update.effective_user.id
-        user_name = update.effective_user.first_name
+        "📋 **OBUNA BO'LISH UCHUN QILISH KERAK:**\n"
+        "1. 💳 **To'lov qiling** - 130,000 so'm\n"
+        "   • Karta: 9860 3501 4890 3205 (HUMO)\n"
+        "   • Click: +998888882505\n\n"
         
-        if update.message.photo:
-            # Rasm qabul qilish
-            file_id = update.message.photo[-1].file_id
-            receipt_type = "photo"
-        else:
-            # Matn qabul qilish
-            receipt_text = update.message.text
-            file_id = receipt_text
-            receipt_type = "text"
+        "2. 📸 **Chekni yuboring**\n"
+        "   • To'lov chekini (screenshot)\n"
+        "   • @Operator_Kino_1985 ga yuboring\n\n"
         
-        content_name = context.user_data.get('selected_content', 'Nomalum')
-        content_type = context.user_data.get('payment_type', 'movie')
-        price = context.user_data.get('content_price', 30000)
+        "3. ⏳ **Kuting**\n"
+        "   • 1 soat ichida obuna faollashtiriladi\n"
+        "   • Barcha kontentlar ochiladi\n\n"
         
-        # To'lovni bazaga qo'shish
-        db.add_payment(user_id, content_type, content_name, price, file_id)
+        "4. 🎬 **Foydalaning**\n"
+        "   • Barcha kinolar va seriallar\n"
+        "   • HD sifatda tomosha qiling\n"
+        "   • Yuklab oling\n\n"
         
-        # Adminga xabar yuborish
-        if ADMIN_ID:
-            try:
-                # Usernameni alohida o'zgaruvchiga olish
-                username = update.effective_user.username or "Nomalum"
-                
-                admin_message = (
-                    f"💳 *Yangi To'lov So'rovi:*\n\n"
-                    f"👤 Foydalanuvchi: {user_name}\n"
-                    f"🆔 ID: {user_id}\n"
-                    f"📛 Username: @{username}\n\n"
-                    f"🎬 Kontent: {content_name}\n"
-                    f"💰 Narx: {price:,} so'm\n"
-                    f"📋 Turi: {content_type}\n\n"
-                    f"📸 Chek turi: {recept_type}\n\n"
-                    f"✅ Tasdiqlash: /confirm_{user_id}_{content_name.replace(' ', '_')}\n"
-                    f"❌ Rad etish: /reject_{user_id}_{content_name.replace(' ', '_')}"
+        "✅ **OBUNA BO'LGACH:**\n"
+        "• Barcha bo'limlar ochiladi\n"
+        "• Cheksiz ko'rish imkoniyati\n"
+        "• Yuklab olish huquqi\n"
+        "• Yangi kontentlar avtomatik qo'shiladi\n\n"
+        
+        "💰 **Narxi:** 130,000 so'm/oy\n"
+        "📞 **Admin:** @Operator_Kino_1985\n"
+        "📱 **Tel:** +998888882505"
+    )
+
+@dp.message(F.text == "📥 Yuklab Olish")
+async def download_service(message: types.Message):
+    await message.answer(
+        "📥 **Yuklab Olish Xizmati Tafsilotlari:**\n\n"
+        "✅ **Kinolarni telefon yoki kompyuteringizga yuklab oling**\n"
+        "✅ **Internet bo'lmaganda ko'ring**\n"
+        "✅ **Turli formatlar mavjud**\n"
+        "✅ **Tez yuklab olish**\n\n"
+        "💰 **Narxlar:**\n"
+        "• Kino: 30,000 so'm\n"
+        "• Serial (1 qism): 15,000 so'm\n"
+        "• Konsert: 25,000 so'm\n\n"
+        "💳 **Karta raqami:** 9860 3501 4890 3205 (HUMO)\n"
+        "📞 **Admin:** @Operator_Kino_1985\n\n"
+        "Kerakli kontentni tanlang va to'lov qiling.",
+        reply_markup=payment_keyboard()
+    )
+
+@dp.message(F.text == "🎯 Maxsus Kontentlar")
+async def exclusive_content(message: types.Message):
+    await message.answer(
+        "🎯 **Maxsus Kontentlar:**\n\n"
+        "• Eksklyuziv kinolar\n"
+        "• Rejissor versiyalari\n"
+        "• Sahna ortidagi lavhalar\n"
+        "• Aktyorlar intervyulari\n\n"
+        "💰 **Narxi:** 50,000 - 200,000 so'm\n\n"
+        "💳 To'lov uchun: @Operator_Kino_1985"
+    )
+
+@dp.message(F.text == "🔧 Shaxsiy Qo'llab-quvvatlash")
+async def personal_support(message: types.Message):
+    await message.answer(
+        "🔧 **Shaxsiy Qo'llab-quvvatlash:**\n\n"
+        "• Shaxsiy maslahat\n"
+        "• Texnik yordam\n"
+        "• Maxsus so'rovlar\n"
+        "• 24/7 javob\n\n"
+        "💰 **Narxi:** 20,000 so'm/soat\n\n"
+        "💳 To'lov uchun: @Operator_Kino_1985"
+    )
+
+@dp.message(F.text == "💳 To'lov qilish")
+async def payment_instructions(message: types.Message):
+    await message.answer(
+        "💳 **To'lov Qilish Tartibi:**\n\n"
+        
+        "🏦 **Karta orqali to'lov:**\n"
+        "1. **Karta raqami:** 9860 3501 4890 3205\n"
+        "2. **Karta turi:** HUMO\n"
+        "3. **Summa:** 130,000 so'm\n"
+        "4. **Izoh:** Premium Obuna\n\n"
+        
+        "📱 **Click orqali to'lov:**\n"
+        "1. **Raqam:** +998 90 123 45 67\n"
+        "2. **Summa:** 130,000 so'm\n"
+        "3. **Izoh:** Kino Bot Premium\n\n"
+        
+        "📸 **Chek olish:**\n"
+        "• To'lov muvaffaqiyatli amalga oshgach\n"
+        "• Chekni (screenshot) oling\n"
+        "• @Operator_Kino_1985 ga yuboring\n\n"
+        
+        "⏱️ **Eslatma:** To'lovdan keyin 1 soat ichida javob beriladi"
+    )
+
+@dp.message(F.text == "🔍 Obunani tekshirish")
+async def check_subscription(message: types.Message):
+    user_id = message.from_user.id
+    is_premium = db.check_premium_status(user_id)
+    
+    if is_premium:
+        await message.answer(
+            "✅ **Sizda Premium Obuna faol!**\n\n"
+            "🎬 Barcha kontentlar ochiq\n"
+            "⭐ Premium afzalliklar faol\n"
+            "📅 Obuna muddati davom etmoqda\n\n"
+            "Muddatingiz tugashiga: 15 kun qoldi"
+        )
+    else:
+        await message.answer(
+            "❌ **Sizda Premium Obuna faol emas!**\n\n"
+            "💎 Obuna bo'lish uchun:\n"
+            "1. To'lov qiling\n"
+            "2. Chekni yuboring\n"
+            "3. Kutib turing\n\n"
+            "📞 Admin: @Operator_Kino_1985"
+        )
+
+@dp.message(F.text == "🎁 Aksiya")
+async def special_offer(message: types.Message):
+    await message.answer(
+        "🎁 **MAXSUS AKSIYA - 50% CHEGIRMA!**\n\n"
+        
+        "🔥 **Faqat birinchi 10 ta buyurtma uchun:**\n"
+        "~~130,000 so'm~~ → **65,000 so'm**\n\n"
+        
+        "⏰ **Muddati:** Bugungina\n"
+        "👥 **Qolgan joylar:** 3 ta\n\n"
+        
+        "🚀 **HOZIR RO'YXATDAN O'TING:**\n"
+        "1. 65,000 so'm to'lang\n"
+        "2. Chekni @Operator_Kino_1985 ga yuboring\n"
+        "3. Premium obunangiz faollashtirilsin!\n\n"
+        
+        "💳 **Karta:** 9860 3501 4890 3205\n"
+        "📞 **Admin:** @Operator_Kino_1985\n\n"
+        
+        "⚡ **TEZ HARAKAT QILING - Joylar cheklangan!**"
+    )
+
+@dp.message(F.text == "📦 Obuna Paketlari")
+async def subscription_packages(message: types.Message):
+    await message.answer(
+        "📦 **OBUNA PAKETLARI - O'zingizga Mosini Tanlang**\n\n"
+        
+        "💎 **STANDART** - 130,000 so'm/oy\n"
+        "• Barcha kinolar va seriallar\n"
+        "• HD 720p sifat\n"
+        "• Yuklab olish\n\n"
+        
+        "⭐ **PREMIUM** - 180,000 so'm/oy\n"
+        "• Barcha kontentlar\n"
+        "• HD 1080p sifat\n"
+        "• Cheksiz yuklab olish\n"
+        "• Maxsus kontentlar\n\n"
+        
+        "👑 **VIP** - 250,000 so'm/oy\n"
+        "• Premium + barcha afzalliklar\n"
+        "• Shaxsiy qo'llab-quvvatlash\n"
+        "• Yangi filmlardan 24 soat oldin\n"
+        "• Eksklyuziv intervyular\n\n"
+        
+        "🎯 **HOZIR TANLANG:**\n"
+        "💳 Karta: 9860 3501 4890 3205\n"
+        "📞 Admin: @Operator_Kino_1985"
+    )
+    
+# ==============================================================================
+# -*-*- ADMIN BILAN BOG'LANISH HANDLERLARI -*-*-
+# ==============================================================================
+
+@dp.message(F.text == "📞 Admin bilan bog'lanish")
+async def contact_admin(message: types.Message):
+    await message.answer(
+        f"📞 **Admin bilan bog'lanish:**\n\n"
+        
+        f"👤 **Admin:** @Operator_Kino_1985\n"
+        f"📱 **Telefon:** +998888882505\n\n"
+        
+        f"💬 **Qanday murojaat qilish kerak:**\n"
+        f"1. To'lov chekini yuboring\n"
+        f"2. Foydalanuvchi ID ni yozing\n"
+        f"3. Qaysi xizmat uchun to'lov qilganingizni yozing\n\n"
+        
+        f"⏱️ **Javob berish vaqti:**\n"
+        f"• Odatiy: 1 soat ichida\n"
+        f"• Ish vaqtida: 15-30 daqiqa\n"
+        f"• Tushlik vaqti: 1-2 soat\n\n"
+        
+        f"📋 **Kerakli ma'lumotlar:**\n"
+        f"• To'lov cheki (screenshot)\n"
+        f"• Foydalanuvchi ID: {message.from_user.id}\n"
+        f"• Xizmat turi (Premium/Yuklab olish va h.k.)"
+    )    
+    
+@dp.message(F.text == "📋 To'lov Qo'llanmasi")
+async def payment_guide(message: types.Message):
+    await message.answer(
+        "📋 **To'lov Qo'llanmasi:**\n\n"
+        
+        "📸 **CHEK QANDAY BO'LISHI KERAK:**\n"
+        "• To'liq ekran screenshot\n"
+        "• Summa va vaqt aniq ko'rinsin\n"
+        "• Karta raqami/to'lov raqami ko'rinsin\n"
+        "• Yorqin va o'qiladigan bo'lsin\n\n"
+        
+        "⏰ **ISh VAQTI:**\n"
+        "• Dushanba - Juma: 9:00 - 22:00\n"
+        "• Shanba - Yakshanba: 10:00 - 20:00\n"
+        "• Tushlik: 13:00 - 14:00\n\n"
+        
+        "📞 **BOG'LANISH:**\n"
+        "• Telegram: @Operator_Kino_1985\n"
+        "• Telefon: +998888882505\n"
+        "• Xabar: \"Premium Obuna uchun to'lov\"\n\n"
+        
+        "⚠️ **ESLATMA:**\n"
+        "• Cheksiz obuna faollashtirilmaydi!\n"
+        "• Noto'g'ri chek yuborilsa, obuna berilmaydi!"
+    )    
+
+@dp.message(F.text == "💳 Karta orqali to'lash")
+async def card_payment(message: types.Message):
+    await message.answer(
+        "💳 **Karta orqali to'lov:**\n\n"
+        "🏦 **Bank:** Kapital Bank\n"
+        "💳 **Karta raqami:** 9860 3501 4890 3205\n"
+        "📱 **Karta turi:** HUMO\n"
+        "👤 **Karta egasi:** [Admin Ismi]\n\n"
+        "📋 **To'lov tartibi:**\n"
+        "1. Kerakli summani o'tkazing\n"
+        "2. To'lov chekini (screenshot) saqlang\n"
+        "3. Chekni @Operator_Kino_1985 ga yuboring\n"
+        "4. Xizmat faollashtiriladi\n\n"
+        "⏱️ **Faollashtirish:** 1 soat ichida"
+    )
+
+@dp.message(F.text == "📱 Click orqali to'lash")
+async def click_payment(message: types.Message):
+    await message.answer(
+        "📱 **Click orqali to'lov:**\n\n"
+        "🔢 **Telefon raqam:** +998 90 123 45 67\n"
+        "👤 **Ism:** [Admin Ismi]\n\n"
+        "📋 **To'lov tartibi:**\n"
+        "1. Click ilovasini oching\n"
+        "2. 'To'lov' bo'limiga o'ting\n"
+        "3. Yuqoridagi raqamga to'lov qiling\n"
+        "4. To'lov chekini saqlang\n"
+        "5. Chekni @Operator_Kino_1985 ga yuboring\n\n"
+        "⏱️ **Faollashtirish:** 1 soat ichida"
+    )
+
+# ==============================================================================
+# -*-*- ADMIN HANDLERLARI -*-*-
+# ==============================================================================
+
+@dp.message(F.text == "👑 Admin Panel")
+async def admin_panel(message: types.Message):
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        users_count = db.get_users_count()
+        today_users = db.get_today_users()
+        stats = db.get_premium_stats()
+        
+        await message.answer(
+            f"👑 **Admin Panelga xush kelibsiz!**\n\n"
+            f"📊 **Statistika:**\n"
+            f"• Jami foydalanuvchilar: {users_count} ta\n"
+            f"• Bugungi yangi: {today_users} ta\n"
+            f"• Premium a'zolar: {stats['premium_users']} ta\n"
+            f"• Oylik daromad: {stats['monthly_income']:,} so'm\n\n"
+            f"🆔 ID: {message.from_user.id}\n"
+            f"👤 Username: @{message.from_user.username}\n\n"
+            f"Quyidagi funksiyalardan foydalanishingiz mumkin:",
+            reply_markup=admin_advanced_keyboard()  # <- Yangi klaviatura
+        )
+    else:
+        await message.answer("Sizga ruxsat yo'q!")
+
+@dp.message(F.text == "📊 Foydalanuvchilar soni")
+async def users_count(message: types.Message):
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        users_count = db.get_users_count()
+        today_users = db.get_today_users()
+        await message.answer(
+            f"📊 Statistika:\n\n"
+            f"• Jami foydalanuvchilar: {users_count} ta\n"
+            f"• Bugun ro'yxatdan o'tganlar: {today_users} ta"
+        )
+    else:
+        await message.answer("Sizga ruxsat yo'q!")
+        
+# ==============================================================================
+# -*-*- TO'LOVLARNI KO'RISH -*-*-
+# ==============================================================================
+@dp.message(F.text == "💰 To'lovlarni ko'rish")
+async def view_payments(message: types.Message):
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        pending_payments = db.get_pending_payments()
+        
+        if pending_payments:
+            response = "💰 **Kutilayotgan to'lovlar:**\n\n"
+            for payment in pending_payments:
+                response += (
+                    f"🆔 To'lov ID: {payment[0]}\n"
+                    f"👤 Foydalanuvchi: {payment[8]} (ID: {payment[1]})\n"
+                    f"🎬 Kino: {payment[9]}\n"
+                    f"💵 Summa: {payment[2]:,} so'm\n"
+                    f"⏰ Sana: {payment[7]}\n"
+                    f"✅ Tasdiqlash: `✅ Tasdiqlash #{payment[0]}`\n"
+                    f"❌ Rad etish: `❌ Rad etish #{payment[0]}`\n\n"
                 )
-                
-                if receipt_type == "photo":
-                    await context.bot.send_photo(
-                        chat_id=int(ADMIN_ID),
-                        photo=file_id,
-                        caption=admin_message,
-                        parse_mode='Markdown'
-                    )
-                else:
-                    await context.bot.send_message(
-                        chat_id=int(ADMIN_ID),
-                        text=admin_message + f"\n\n📝 Chek matni: {file_id}",
-                        parse_mode='Markdown'
-                    )
-                    
-            except Exception as e:
-                logging.error(f"Adminga to'lov xabarini yuborishda xatolik: {e}")
-        
-        await update.message.reply_text(
-            "✅ To'lov ma'lumotlari adminga yuborildi!\n\n"
-            "⏳ To'lov tekshirilgach kontent sizga ochiladi.\n"
-            "📞 Tezroq javob olish uchun: @Operator_1985",
-            reply_markup=get_premium_menu()
-        )
-        
-        context.user_data['waiting_for_receipt'] = False
-        context.user_data['selected_content'] = None
-        context.user_data['payment_type'] = None 
-
-async def show_paid_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    warning_text = (
-        "⚠️ OGOHLANTIRISH! ⚠️\n\n"
-        "Hurmatli foydalanuvchi!\n\n"
-        "📝 Mavzulardan chetga chiqmagan holda so'rovlar yuboring\n"
-        "🚫 Nomaqbul va xaqoratlik so'zlar ishlatmang\n"
-        "👁️ Bot to'liq kuzatiladi, o'zingizni asrang\n"
-        "🙏 Tushunganingiz uchun katta rahmat\n\n"
-        "👨‍💼 Admin ruhsati bilan\n\n"
-        "💳 Admin karta raqami: 8600 1104 7759 4067\n\n"
-        "💰 Narxlar:\n"
-        "🎬 Birgina kino narhi - 30,000 so'm\n"
-        "📺 Birgina serial narhi - 10,000 so'm\n"
-        "🐰 Birgina multfilm narhi - 30,000 so'm\n\n"
-        "📸 To'lov qilib bo'lgach chek surati yuboring\n"
-        "👨‍💼 Adminga yuboring\n\n"
-        "❓ Sizni qanday kontentlar qiziqtirmoqda?\n"
-        "📝 Shularni batafsil yozing\n\n"
-        "📞 Agar botimiz javob bermasa: @Operator_1985"
-    )
-    
-    await update.message.reply_text(
-        warning_text,
-        reply_markup=get_paid_movies_menu()
-    )
-
-async def contact_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    instruction_text = (
-        "👨‍💼 Adminga xabar yuborish\n\n"
-        "📝 Sizni qiziqtirgan kontent nomini uz/ru/en tillarida yozishingiz mumkin\n\n"
-        "✅ Agar bu kontentlar mavjud bo'lsa,\n"
-        "👨‍💼 Operator sizga javob yuboradi\n\n"
-        "💼 Pullik kontentlarni sotib olish pullik hizmat bo'limi bilan tanishib chiqing\n\n"
-        "👇 Xabaringizni yozing va yuboring:"
-    )
-    
-    await update.message.reply_text(
-        instruction_text,
-        reply_markup=get_admin_contact_menu()
-    )
-    context.user_data['waiting_for_message'] = True
-
-async def show_payment_instructions(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    payment_text = (
-        "💳 To'lov va buyurtma tartibi:\n\n"
-        "1️⃣ Pullik hizmatlar bilan tanishgan bo'lsangiz\n"
-        "2️⃣ Quyidagi ma'lumotlarni yuboring:\n\n"
-        "📸 To'lov chek surati\n"
-        "📝 Kontent nomi (aniq va xatolarsiz)\n\n"
-        "💳 To'lov qilish uchun karta raqami:\n"
-        "8600 1104 7759 4067\n\n"
-        "📞 Qo'shimcha ma'lumot uchun: @Operator_1985"
-    )
-    
-    await update.message.reply_text(
-        payment_text,
-        reply_markup=get_admin_contact_menu()
-    )
-
-async def handle_admin_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.user_data.get('waiting_for_message'):
-        user_message = update.message.text
-        user_id = update.effective_user.id
-        user_name = update.effective_user.first_name
-        
-        if user_message == "🔙 Orqaga":
-            await update.message.reply_text(
-                "💼 Pullik Hizmatlar:",
-                reply_markup=get_premium_menu()
-            )
-            context.user_data['waiting_for_message'] = False
-            return
-        
-        if user_message == "📝 Kontent so'rovi yuborish":
-            await update.message.reply_text(
-                "📝 Kontent so'rovi yuborish:\n\n"
-                "Iltimos, qiziqtirgan kontent nomini yozing:",
-                reply_markup=ReplyKeyboardMarkup([["🔙 Orqaga"]], resize_keyboard=True)
-            )
-            context.user_data['waiting_for_content_request'] = True
-            return
-            
-        if user_message == "💳 To'lov chekini yuborish":
-            await update.message.reply_text(
-                "💳 To'lov chekini yuborish:\n\n"
-                "Iltimos, to'lov chekini rasm shaklida yuboring yoki "
-                "chek ma'lumotlarini matn shaklida yozing:",
-                reply_markup=ReplyKeyboardMarkup([["🔙 Orqaga"]], resize_keyboard=True)
-            )
-            context.user_data['waiting_for_payment'] = True
-            return
-        
-        # Kontent so'rovi yuborish
-        if context.user_data.get('waiting_for_content_request'):
-            if ADMIN_ID:
-                try:
-                    await context.bot.send_message(
-                        int(ADMIN_ID),
-                        f"📨 Yangi kontent so'rovi:\n\n"
-                        f"👤 Foydalanuvchi: {user_name}\n"
-                        f"🆔 ID: {user_id}\n"
-                        f"📛 Username: @{update.effective_user.username if update.effective_user.username else 'Noma lum'}\n\n"
-                        f"📝 So'rov: {user_message}\n\n"
-                        f"💬 Javob berish uchun: /reply_{user_id}"
-                    )
-                except Exception as e:
-                    logging.error(f"Adminga xabar yuborishda xatolik: {e}")
-            
-            await update.message.reply_text(
-                "✅ Kontent so'rovingiz adminga yuborildi!\n\n"
-                "⏳ Tez orada javob beradi.\n"
-                "👀 Javobni 'Javobni Ko'rish' bo'limida ko'rashingiz mumkin.",
-                reply_markup=get_premium_menu()
-            )
-            context.user_data['waiting_for_content_request'] = False
-            
-        # To'lov cheki yuborish
-        elif context.user_data.get('waiting_for_payment'):
-            if ADMIN_ID:
-                try:
-                    await context.bot.send_message(
-                        int(ADMIN_ID),
-                        f"💳 Yangi to'lov ma'lumoti:\n\n"
-                        f"👤 Foydalanuvchi: {user_name}\n"
-                        f"🆔 ID: {user_id}\n"
-                        f"📛 Username: @{update.effective_user.username if update.effective_user.username else 'Noma lum'}\n\n"
-                        f"📝 To'lov ma'lumoti: {user_message}\n\n"
-                        f"💬 Tasdiqlash uchun: /confirm_{user_id}"
-                    )
-                except Exception as e:
-                    logging.error(f"Adminga to'lov ma'lumoti yuborishda xatolik: {e}")
-            
-            await update.message.reply_text(
-                "✅ To'lov ma'lumotingiz adminga yuborildi!\n\n"
-                "⏳ To'lov tekshirilgach kontent yuboriladi.\n"
-                "👀 Javobni 'Javobni Ko'rish' bo'limida ko'rashingiz mumkin.",
-                reply_markup=get_premium_menu()
-            )
-            context.user_data['waiting_for_payment'] = False
-            
         else:
-            # Oddiy xabar yuborish
-            if ADMIN_ID:
-                try:
-                    await context.bot.send_message(
-                        int(ADMIN_ID),
-                        f"📨 Yangi xabar:\n\n"
-                        f"👤 Foydalanuvchi: {user_name}\n"
-                        f"🆔 ID: {user_id}\n"
-                        f"📛 Username: @{update.effective_user.username if update.effective_user.username else 'Noma lum'}\n\n"
-                        f"📝 Xabar: {user_message}\n\n"
-                        f"💬 Javob berish uchun: /reply_{user_id}"
-                    )
-                except Exception as e:
-                    logging.error(f"Adminga xabar yuborishda xatolik: {e}")
-            
-            await update.message.reply_text(
-                "✅ Xabaringiz adminga yuborildi!\n\n"
-                "⏳ Tez orada javob beradi.\n"
-                "👀 Javobni 'Javobni Ko'rish' bo'limida ko'rashingiz mumkin.",
-                reply_markup=get_premium_menu()
-            )
+            response = "✅ Kutilayotgan to'lovlar yo'q"
         
-        context.user_data['waiting_for_message'] = False
+        await message.answer(response)
 
-async def check_admin_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    await update.message.reply_text(
-        "👀 Javobni ko'rish:\n\n"
-        "📨 Hozircha sizga hech qanday javob kelmagan.\n"
-        "⏳ Agar admin javob yuborgan bo'lsa, tez orada shu yerda ko'rasiz.\n\n"
-        "📞 Shoshilgan bo'lsangiz: @Operator_1985",
-        reply_markup=get_premium_menu()
-    )
-
-# ==================== PROFIL VA TIL HANDLERLARI ====================
-async def show_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    user_data = db.get_user(user.id)
-    if user_data:
-        await update.message.reply_text(
-            "👤 Profil:\n" +
-            "🆔 ID: " + str(user_data[0]) + "\n" +
-            "📛 Ism: " + user_data[2] + "\n" +
-            "📞 Tel: " + user_data[3]
-        )
-    else:
-        await update.message.reply_text("❌ Profil topilmadi")
-
-# ==================== TIL O'ZGARTIRISH ====================
-async def change_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Tilni o'zgartirish"""
-    await update.message.reply_text(
-        "🌐 Tilni tanlang:",
-        reply_markup=get_language_menu()
-    )
-    
-# ==================== ADMIN PANELDAN CHIQISH ====================
-async def admin_exit(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    admin_panel = AdminPanel()
-    
-    if await admin_panel.check_admin(user_id):
-        await update.message.reply_text(
-            "👋 Admin paneldan chiqildi. Asosiy menyuga qaytingiz.",
-            reply_markup=get_main_menu()
-        )
-    else:
-        await update.message.reply_text("🏠 Asosiy menyu:", reply_markup=get_main_menu())
-
-# ==================== YANGI UNIVERSAL HANDLER ====================
-async def universal_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Barcha xabarlarni qayta ishlash"""
-    user_id = update.effective_user.id
-    message_text = update.message.text
-    
-    print(f"DEBUG: Foydalanuvchi {user_id} '{message_text}' deb yozdi")
-    
-    # Asosiy menyu tugmalari
-    if message_text == "📋 Kategoriyalar":
-        await show_categories(update, context)
-    elif message_text == "🎬 Kino qidirish":
-        await search_movies(update, context)
-    elif message_text == "👤 Profil":
-        await show_profile(update, context)
-    elif message_text == "💼 Pullik Hizmatlar":
-        await show_premium_services(update, context)
-    elif message_text == "🌐 Tilni tanlash":
-        await change_language(update, context)
-    else:
-        print(f"DEBUG: '{message_text}' uchun handler topilmadi")
+# ==============================================================================
+# -*-*- KINOLAR RO'YXATI -*-*-
+# ==============================================================================
+@dp.message(F.text == "📋 Kinolar ro'yxati")
+async def list_all_movies(message: types.Message):
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        # Barcha kategoriyalardagi kinolarni olish
+        all_categories = db.get_all_categories()
+        all_movies = []
         
-# ==================== UNIVERSAL ADMIN HANDLER ====================
-async def universal_admin_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Barcha admin xabarlarini qayta ishlash"""
-    user_id = update.effective_user.id
-    message_text = update.message.text
-    
-    print(f"DEBUG ADMIN: User {user_id} sent: '{message_text}'")
-    
-    # Admin tekshirish
-    admin_panel = AdminPanel()
-    if not await admin_panel.check_admin(user_id):
-        print(f"DEBUG ADMIN: User {user_id} is not admin")
-        return
-    
-    print(f"DEBUG ADMIN: User {user_id} is admin, processing command: '{message_text}'")
-    
-    # Admin komandalari
-    if message_text == "➕ Kontent Qo'shish":
-        await admin_panel.show_add_content(update, context)
-    elif message_text == "🗑️ Kontent O'chirish":
-        await admin_panel.show_delete_content(update, context)
-    elif message_text == "📊 Kontent Statistikasi":
-        await admin_panel.show_stats(update, context)
-    elif message_text == "👥 Foydalanuvchilar":
-        await admin_panel.show_users(update, context)
-    elif message_text == "🚫 Bloklash":
-        await admin_panel.show_block_user(update, context)
-    elif message_text == "✅ Blokdan Ochish":
-        await admin_panel.show_unblock_user(update, context)
-    elif message_text == "📢 Xabar Yuborish":
-        await admin_panel.show_broadcast(update, context)
-    elif message_text == "📨 Foydalanuvchi Xabarlari":
-        await admin_panel.show_user_messages(update, context)
-    elif message_text == "💬 Javob Qaytarish":
-        await admin_panel.show_reply(update, context)
-    elif message_text == "💳 To'lov Cheklari":
-        await admin_panel.show_payments(update, context)
-    elif message_text == "💰 Pullik Hizmatlar":
-        await admin_panel.show_premium(update, context)
-    elif message_text == "🔙 Admin menyu":
-        await admin_panel.admin_panel(update, context)
-    elif message_text == "🔙 Asosiy menyu":
-        await admin_exit(update, context)
-    else:
-        print(f"DEBUG ADMIN: No handler for admin command: '{message_text}'")   
-
-# ==================== YANGI: KONTENT QULFLASH FUNKSIYASI ====================
-async def send_paginated_content(update: Update, context: ContextTypes.DEFAULT_TYPE, 
-                               category, subject, category_type="hollywood"):
-    """Kontentlarni sahifalab ko'rsatish - QULFLASH QO'SHILGAN"""
-    try:
-        user_id = update.effective_user.id
+        for main_category in all_categories["main_categories"]:
+            movies = db.get_movies_by_category(main_category)
+            all_movies.extend(movies)
         
-        # Kontent pullikligini tekshirish
-        if db.is_premium_content(category, subject):
-            # Foydalanuvchi ruxsatini tekshirish
-            if not db.check_user_access(user_id, category, subject):
-                await update.message.reply_text(
-                    f"🔒 *Bu kontent pullik!*\n\n"
-                    f"🎬 **{subject}** ko'rish uchun to'lov qilishingiz kerak.\n\n"
-                    f"💳 Narx: {db.get_premium_price(category, subject):,} so'm\n\n"
-                    f"⬇️ To'lov qilish uchun quyidagi tugmani bosing:",
-                    reply_markup=ReplyKeyboardMarkup([
-                        ["💳 Pullik Hizmatlar"], 
-                        ["🔙 Orqaga"]
-                    ], resize_keyboard=True),
-                    parse_mode='Markdown'
-                )
-                return
+        if not all_movies:
+            await message.answer("📋 Hozircha hech qanday kino mavjud emas.")
+            return
         
-        # Sahifa raqamini olish
-        page = context.user_data.get(f'page_{category}_{subject}', 1)
+        response = "📋 **Barcha Kinolar:**\n\n"
+        for movie in all_movies:
+            movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+            response += f"🆔 ID: {movie_id}\n🎬 Nomi: {title}\n📁 Kategoriya: {category}\n"
+            if actor_name:
+                response += f"🎭 Aktyor: {actor_name}\n"
+            response += f"💵 Narxi: {price} so'm\n"
+            response += f"🔓 {'Premium' if is_premium else 'Oddiy'}\n"
+            response += "─" * 30 + "\n"
         
-        print(f"DEBUG: Kontent ko'rsatish - Category: {category}, Subject: {subject}, Page: {page}")
-        
-        # Kontentlarni olish
-        contents, total_pages, total_count = db.get_content_by_subject_paginated(
-            category, subject, page
-        )
-        
-        print(f"DEBUG: Bazadan qaytgan kontentlar: {len(contents)} ta, Jami sahifalar: {total_pages}")
-        
-        if contents:
-            # Faqat bitta kontentni ko'rsatish
-            content = contents[0]
-            content_id = content[0]  # ID ni olish
-            title = content[1]
-            description = content[2]
-            file_id = content[4]
-            file_type = content[5]
-            
-            caption = f"🎬 {title}\n📝 {description}\n\n📄 Sahifa: {page}/{total_pages} | Jami: {total_count} ta"
-            
-            # Agar kontent pullik bo'lsa va foydalanuvchi to'lov qilgan bo'lsa
-            if db.is_premium_content(category, subject) and db.check_user_access(user_id, category, subject):
-                caption += "\n\n✅ **Siz bu kontentga ega bo'ldingiz!**"
-            
-            # Navigatsiya menyusini yaratish
-            reply_markup = get_content_navigation_menu(page, total_pages, subject, category_type)
-            
-            # Kontentni yuborish
-            try:
-                if file_type == "video":
-                    await update.message.reply_video(video=file_id, caption=caption, reply_markup=reply_markup)
-                elif file_type == "photo":
-                    await update.message.reply_photo(photo=file_id, caption=caption, reply_markup=reply_markup)
-                elif file_type == "audio":
-                    await update.message.reply_audio(audio=file_id, caption=caption, reply_markup=reply_markup)
-                elif file_type == "document":
-                    await update.message.reply_document(document=file_id, caption=caption, reply_markup=reply_markup)
-                else:
-                    await update.message.reply_text(caption, reply_markup=reply_markup)
-                
-                print(f"DEBUG: Kontent yuborildi: {title}")
-                
-            except Exception as e:
-                logging.error(f"Kontent yuborishda xatolik: {e}")
-                await update.message.reply_text(f"❌ Fayl yuborishda xatolik: {caption}", reply_markup=reply_markup)
-            
+        # Xabar juda uzun bo'lsa, bo'laklab yuborish
+        if len(response) > 4000:
+            parts = [response[i:i+4000] for i in range(0, len(response), 4000)]
+            for part in parts:
+                await message.answer(part)
         else:
-            await update.message.reply_text(
-                f"❌ Hozircha {subject} mavjud emas.\n\n"
-                "⏳ Tez orada qo'shiladi yoki\n"
-                "💼 Pullik hizmatlar bo'limidan so'rab olishingiz mumkin.",
-                reply_markup=get_categories_menu()
-            )
-            
-    except Exception as e:
-        logging.error(f"Kontent ko'rsatishda xatolik: {e}")
-        await update.message.reply_text(
-            "❌ Kontentlarni yuklashda xatolik yuz berdi. Iltimos qayta urinib ko'ring.",
-            reply_markup=get_categories_menu()
+            await message.answer(response)
+    else:
+        await message.answer("Sizga ruxsat yo'q!")     
+
+@dp.message(F.text == "💰 Pullik Hizmatlar Statistika")
+async def premium_stats(message: types.Message):
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        stats = db.get_premium_stats()
+        await message.answer(
+            f"💰 **Pullik Hizmatlar Statistika:**\n\n"
+            f"👑 **Premium obuna a'zolari:** {stats['premium_users']} ta\n"
+            f"💸 **Oylik daromad:** {stats['monthly_income']:,} so'm\n"
+            f"📥 **Yuklab olishlar soni:** {stats['downloads_count']} ta\n"
+            f"🔧 **Faol support ticketlar:** {stats['active_tickets']} ta\n"
+            f"🎬 **Eng ko'p yuklangan:** {stats['most_downloaded']}\n\n"
+            f"💳 **Karta raqami:** 9860 3501 4890 3205\n"
+            f"📞 **Admin:** @Operator_Kino_1985"
         )
-        
+    else:
+        await message.answer("Sizga ruxsat yo'q!")
 
-# ==================== BOT ISHGA TUSHIRISH ====================
-async def post_init(application):
-    try:
-        scheduler = setup_scheduler(application)
-        application.bot_data['scheduler'] = scheduler
-        logging.info("Scheduler ishga tushdi")
-    except Exception as e:
-        logging.error(f"Scheduler xatosi: {e}")
-    
-    if ADMIN_ID:
-        try:
-            await application.bot.send_message(int(ADMIN_ID), "🤖 Bot ishga tushdi!")
-        except Exception as e:
-            print(f"Adminga xabar yuborishda xatolik: {e}")
-            
+@dp.message(F.text == "📢 Reklama yuborish")
+async def send_advertisement(message: types.Message, state: FSMContext):
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        await message.answer(
+            "📢 Reklama matnini yuboring:",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        await state.set_state(AdvertisementState.waiting_ad_text)
+    else:
+        await message.answer("Sizga ruxsat yo'q!")
 
-# ==================== ASOSIY BOT ISHGA TUSHIRISH ====================
-def main():
-    if not BOT_TOKEN:
-        print("❌ BOT_TOKEN topilmadi!")
-        return
-    
-    application = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
+@dp.message(F.text == "👑 Premium Boshqaruv")
+async def premium_management(message: types.Message):
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        await message.answer(
+            "👑 **Premium Boshqaruv Paneliga xush kelibsiz!**\n\n"
+            "Bu yerda premium obunalarni boshqarishingiz mumkin:\n"
+            "• Yangi obuna qo'shish\n"
+            "• Obunani uzaytirish\n"
+            "• Obunani bekor qilish\n"
+            "• Statistikalarni ko'rish\n\n"
+            "Foydalanuvchi ID sini yuboring:",
+            reply_markup=ReplyKeyboardRemove()
+        )
+    else:
+        await message.answer("Sizga ruxsat yo'q!")
 
-    # ==================== ADMIN FILTER ====================
-    admin_user_id = int(ADMIN_ID) if ADMIN_ID else None
-    
-    def admin_filter(message):
-        """Faqat adminlar uchun filter"""
-        if not admin_user_id:
-            return False
-        return message.from_user.id == admin_user_id
+# ==============================================================================
+# -*-*- QIDIRUV HANDLERI -*-*-
+# ==============================================================================
 
-    # ==================== CONVERSATION HANDLER ====================
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
-        states={
-            LANGUAGE: [
-                MessageHandler(filters.Regex("^(🇺🇿 O'zbek tili|🇷🇺 Русский язык|🇺🇸 English)$"), choose_language),
-            ],
-            NAME: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)
-            ],
-            PHONE: [
-                MessageHandler(filters.CONTACT, get_phone),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, get_phone)
-            ],
-        },
-        fallbacks=[],
+@dp.message(SearchState.waiting_search_query)
+async def process_search(message: types.Message, state: FSMContext):
+    search_query = message.text
+    await message.answer(
+        f"🔍 '{search_query}' so'rovi bo'yicha natijalar:\n\n"
+        f"1. {search_query} - Kino (2024)\n"
+        f"2. {search_query} - Serial (2023)\n"
+        f"3. {search_query} - Multfilm (2022)",
+        reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
     )
+    await state.clear()
+    
+# ==============================================================================
+# -*-*- BLOK TEKSHIRUVI -*-*-
+# ==============================================================================
 
-    application.add_handler(conv_handler)
-    
-    # ==================== DEBUG HANDLERLARI ====================
-    application.add_handler(CommandHandler("debug", debug_content))
-    application.add_handler(CommandHandler("status", check_database))
-    application.add_handler(CommandHandler("check_uzbek", check_uzbek_content))
-    
-    # ==================== COMMAND HANDLERLARI ====================
-    application.add_handler(CommandHandler("admin", admin_panel.admin_panel))
-    application.add_handler(CommandHandler("reply", reply_to_user))
-    application.add_handler(CommandHandler("confirm", confirm_payment))
-    application.add_handler(CommandHandler("start", start))
+async def check_user_blocked(user_id: int) -> bool:
+    """Foydalanuvchi bloklanganligini tekshirish"""
+    if db.is_user_blocked(user_id):
+        block_info = db.get_blocked_user_info(user_id)
+        if block_info:
+            reason, duration, until, blocked_at, blocked_by = block_info
+            
+            # Muddatni o'qiladigan formatga o'tkazish
+            duration_display = {
+                "24_soat": "24 soat",
+                "7_kun": "7 kun", 
+                "Noma'lum": "Noma'lum muddat"
+            }.get(duration, duration)
+            
+            return True
+    return False
 
-    # ==================== ADMIN HANDLERLARI (BIRINCHI BO'LIB!) ====================
-    # Asosiy admin menyu handlerlari
-    application.add_handler(MessageHandler(filters.Regex("^➕ Kontent Qo'shish$") & filters.User(admin_user_id) if admin_user_id else filters.ALL, admin_panel.show_add_content))
-    application.add_handler(MessageHandler(filters.Regex("^🗑️ Kontent O'chirish$") & filters.User(admin_user_id) if admin_user_id else filters.ALL, admin_panel.show_delete_content))
-    application.add_handler(MessageHandler(filters.Regex("^📊 Kontent Statistikasi$") & filters.User(admin_user_id) if admin_user_id else filters.ALL, admin_panel.show_stats))
-    application.add_handler(MessageHandler(filters.Regex("^👥 Foydalanuvchilar$") & filters.User(admin_user_id) if admin_user_id else filters.ALL, admin_panel.show_users))
-    application.add_handler(MessageHandler(filters.Regex("^🚫 Bloklash$") & filters.User(admin_user_id) if admin_user_id else filters.ALL, admin_panel.show_block_user))
-    application.add_handler(MessageHandler(filters.Regex("^✅ Blokdan Ochish$") & filters.User(admin_user_id) if admin_user_id else filters.ALL, admin_panel.show_unblock_user))
-    application.add_handler(MessageHandler(filters.Regex("^📢 Xabar Yuborish$") & filters.User(admin_user_id) if admin_user_id else filters.ALL, admin_panel.show_broadcast))
-    application.add_handler(MessageHandler(filters.Regex("^📨 Foydalanuvchi Xabarlari$") & filters.User(admin_user_id) if admin_user_id else filters.ALL, admin_panel.show_user_messages))
-    application.add_handler(MessageHandler(filters.Regex("^💬 Javob Qaytarish$") & filters.User(admin_user_id) if admin_user_id else filters.ALL, admin_panel.show_reply))
-    application.add_handler(MessageHandler(filters.Regex("^💳 To'lov Cheklari$") & filters.User(admin_user_id) if admin_user_id else filters.ALL, admin_panel.show_payments))
-    application.add_handler(MessageHandler(filters.Regex("^💰 Pullik Hizmatlar$") & filters.User(admin_user_id) if admin_user_id else filters.ALL, admin_panel.show_premium))
-    application.add_handler(MessageHandler(filters.Regex("^🔙 Admin menyu$") & filters.User(admin_user_id) if admin_user_id else filters.ALL, admin_panel.admin_panel))
-    
-    # Admin kontent qo'shish kategoriya handlerlari (faqat admin uchun)
-    if admin_user_id:
-        # Asosiy kategoriyalar
-        application.add_handler(MessageHandler(
-            filters.Regex("^(🎭 Hollywood Kinolari|🇮🇳 Hind Filmlari|🇷🇺 Rus Kinolari|🇺🇿 O'zbek Kinolari|🕌 Islomiy Kinolar|📺 Turk Seriallari|👶 Bolalar Kinolari|🐰 Bolalar Multfilmlari|🇰🇷 Koreys Kinolari|📺 Koreys Seriallari|🎵 Musiqa)$") & 
-            filters.User(admin_user_id), 
-            admin_panel.handle_add_category_selection
-        ))
+async def send_block_message(user_id: int):
+    """Bloklangan foydalanuvchiga xabar yuborish"""
+    block_info = db.get_blocked_user_info(user_id)
+    if block_info:
+        reason, duration, until, blocked_at, blocked_by = block_info
         
-        # Hollywood subyektlari
-        application.add_handler(MessageHandler(
-            filters.Regex("^(🎬 Mel Gibson Kinolari|💪 Arnold Schwarzenegger Kinolari|🥊 Sylvester Stallone Kinolari|🚗 Jason Statham Kinolari|🐉 Jeki Chan Kinolari|🥋 Skod Adkins Kinolari|🎭 Denzil Washington Kinolari|💥 Jan Clod Van Dam Kinolari|👊 Brus Li Kinolari|😂 Jim Cerry Kinolari|🎩 Jonni Depp Kinolari|🌟 Boshqa Hollywood Kinolari)$") & 
-            filters.User(admin_user_id), 
-            admin_panel.handle_add_subject_selection
-        ))
+        duration_display = {
+            "24_soat": "24 soat",
+            "7_kun": "7 kun", 
+            "Noma'lum": "Noma'lum muddat"
+        }.get(duration, duration)
         
-        # Hind subyektlari
-        application.add_handler(MessageHandler(
-            filters.Regex("^(🤴 Shakruhkhan Kinolari|🎯 Amirkhan Kinolari|🦸 Akshay Kumar Kinolari|👑 Salmonkhan Kinolari|🌟 SayfAlihon Kinolari|🎭 Amitahbachchan Kinolari|💃 MethunChakraborty Kinolari|👨‍🦳 Dharmendra Kinolari|🎬 Raj Kapur Kinolari|📀 Boshqa Hind Kinolari)$") & 
-            filters.User(admin_user_id), 
-            admin_panel.handle_add_subject_selection
-        ))
-        
-        # Rus subyektlari
-        application.add_handler(MessageHandler(
-            filters.Regex("^(💘 Ishdagi Ishq|🎭 Shurikning Sarguzashtlari|🔄 Ivan Vasilivich|🔥 Gugurtga Ketib|🕵️ If Qalqasing Mahbuzi|👶 O'nta Neger Bolasi|⚔️ Qo'lga Tushmas Qasoskorlar|🎬 Barcha Rus Kinolari)$") & 
-            filters.User(admin_user_id), 
-            admin_panel.handle_add_subject_selection
-        ))
-        
-        # O'zbek subyektlari
-        application.add_handler(MessageHandler(
-            filters.Regex("^(🏘️ Mahallada Duv-Duv Gap|👰 Kelinlar Qo'zg'aloni|👨 Abdullajon|😊 Suyinchi|🌳 Chinor Ositidagi Duel|🙏 Yaratganga Shukur|💃 Yor-Yor|🎉 To'ylar Muborak|💣 Bomba|😜 Shum Bola|⚡ Temir Xotin|🎬 Barcha UZ Klassik Kinolari)$") & 
-            filters.User(admin_user_id), 
-            admin_panel.handle_add_subject_selection
-        ))
+        block_message = (
+            f"🚫 **KIRISH TA'QICHLANGAN!**\n\n"
+            f"Hurmatli foydalanuvchi, platforma qoidalariga amal qilinmaganligi "
+            f"sababli hisobingiz faoliyati vaqtincha bloklandi.\n\n"
+            f"📋 **Sabab:** {reason}\n"
+            f"⏰ **Muddati:** {duration_display}\n\n"
+            f"⚠️ **Ogohlantirishlar:**\n"
+            f"• Blokni chetlab o'tishga urinish — muddatni uzaytiradi\n"
+            f"• Administrator bilan hurmat bilan muloqot qiling\n"
+            f"• Yolg'on ma'lumot taqdim qilinishi blokni bekor qilmaydi\n\n"
+            f"Agar bu qaror bo'yicha e'tirozingiz bo'lsa, quyidagi manzil orqali administratorga yozing:\n\n"
+            f"📞 **Administrator:** @Operator_1985\n"
+            f"📝 Arizangiz ko'rib chiqiladi."
+        )
+        return block_message
+    return None    
 
-    # ==================== ASOSIY MENYU HANDLERLARI ====================
-    application.add_handler(MessageHandler(filters.Regex("^📋 Kategoriyalar$"), show_categories))
-    application.add_handler(MessageHandler(filters.Regex("^🎬 Kino qidirish$"), search_movies))
-    application.add_handler(MessageHandler(filters.Regex("^👤 Profil$"), show_profile))
-    application.add_handler(MessageHandler(filters.Regex("^💼 Pullik Hizmatlar$"), show_premium_services))
-    application.add_handler(MessageHandler(filters.Regex("^🌐 Tilni tanlash$"), change_language))
-    application.add_handler(MessageHandler(filters.Regex("^(🏠 Asosiy menyu|🔙 Asosiy menyu)$"), universal_main_menu))
-     
-    # ==================== KATEGORIYA HANDLERLARI (FOYDALANUVCHI UCHUN) ====================
-    application.add_handler(MessageHandler(filters.Regex("^🎭 Hollywood Kinolari$"), show_hollywood))
-    application.add_handler(MessageHandler(filters.Regex("^🇮🇳 Hind Filmlari$"), show_hindi))
-    application.add_handler(MessageHandler(filters.Regex("^🇷🇺 Rus Kinolari$"), show_russian_movies))
-    application.add_handler(MessageHandler(filters.Regex("^🇺🇿 O'zbek Kinolari$"), show_uzbek_movies))
-    application.add_handler(MessageHandler(filters.Regex("^🕌 Islomiy Kinolar$"), show_islamic_movies))
-    application.add_handler(MessageHandler(filters.Regex("^📺 Turk Seriallari$"), show_turkish_series))
-    application.add_handler(MessageHandler(filters.Regex("^👶 Bolalar Kinolari$"), show_kids_movies))
-    application.add_handler(MessageHandler(filters.Regex("^🐰 Bolalar Multfilmlari$"), show_cartoons))
-    application.add_handler(MessageHandler(filters.Regex("^🇰🇷 Koreys Kinolari$"), show_korean_movies))
-    application.add_handler(MessageHandler(filters.Regex("^📺 Koreys Seriallari$"), show_korean_series))
-    application.add_handler(MessageHandler(filters.Regex("^🎵 Musiqa$"), show_music))
+# ==============================================================================
+# -*-*- BOSHQA XABARLAR HANDLERI -*-*-
+# ==============================================================================
+
+@dp.message()
+async def handle_other_messages(message: types.Message):
+    if message.text:
+        await message.answer(
+            "Iltimos, menyudan kerakli bo'limni tanlang 👇", 
+            reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
+        )
+       
+# ==============================================================================
+# -*-*- ASOSIY FUNKSIYA -*-*-
+# ==============================================================================
+
+async def main():
+    print("Bot ishga tushdi...")
+    keep_alive()
+    await dp.start_polling(bot)
     
-    # ==================== FOYDALANUVCHI SUB-MENYU HANDLERLARI ====================
-    # Hollywood
-    application.add_handler(MessageHandler(filters.Regex("^🎬 Mel Gibson Kinolari$"), show_mel_gibson_movies))
-    application.add_handler(MessageHandler(filters.Regex("^💪 Arnold Schwarzenegger Kinolari$"), show_arnold_movies))
-    application.add_handler(MessageHandler(filters.Regex("^🥊 Sylvester Stallone Kinolari$"), show_stallone_movies))
-    application.add_handler(MessageHandler(filters.Regex("^🚗 Jason Statham Kinolari$"), show_statham_movies))
-    application.add_handler(MessageHandler(filters.Regex("^🐉 Jeki Chan Kinolari$"), show_jackie_chan_movies))
-    application.add_handler(MessageHandler(filters.Regex("^🥋 Skod Adkins Kinolari$"), show_adkins_movies))
-    application.add_handler(MessageHandler(filters.Regex("^🎭 Denzil Washington Kinolari$"), show_denzel_movies))
-    application.add_handler(MessageHandler(filters.Regex("^💥 Jan Clod Van Dam Kinolari$"), show_van_damme_movies))
-    application.add_handler(MessageHandler(filters.Regex("^👊 Brus Li Kinolari$"), show_bruce_lee_movies))
-    application.add_handler(MessageHandler(filters.Regex("^😂 Jim Cerry Kinolari$"), show_jim_carrey_movies))
-    application.add_handler(MessageHandler(filters.Regex("^🎩 Jonni Depp Kinolari$"), show_johnny_depp_movies))
-    application.add_handler(MessageHandler(filters.Regex("^🌟 Boshqa Hollywood Kinolari$"), show_other_hollywood_movies))
+# -*-*- BAZA YARATISH -*-*-
+@dp.startup()
+async def on_startup():
+    db.init_db()  # Barcha jadvallarni yaratadi
+    print("Barcha jadvallar yaratildi/yangilandi")    
 
-    # Hind
-    application.add_handler(MessageHandler(filters.Regex("^🤴 Shakruhkhan Kinolari$"), show_shahrukh_khan_movies))
-    application.add_handler(MessageHandler(filters.Regex("^🎯 Amirkhan Kinolari$"), show_amir_khan_movies))
-    application.add_handler(MessageHandler(filters.Regex("^🦸 Akshay Kumar Kinolari$"), show_akshay_kumar_movies))
-    application.add_handler(MessageHandler(filters.Regex("^👑 Salmonkhan Kinolari$"), show_salman_khan_movies))
-    application.add_handler(MessageHandler(filters.Regex("^🌟 SayfAlihon Kinolari$"), show_saif_ali_khan_movies))
-    application.add_handler(MessageHandler(filters.Regex("^🎭 Amitahbachchan Kinolari$"), show_amitabh_bachchan_movies))
-    application.add_handler(MessageHandler(filters.Regex("^💃 MethunChakraborty Kinolari$"), show_mithun_movies))
-    application.add_handler(MessageHandler(filters.Regex("^👨‍🦳 Dharmendra Kinolari$"), show_dharmendra_movies))
-    application.add_handler(MessageHandler(filters.Regex("^🎬 Raj Kapur Kinolari$"), show_raj_kapur_movies))
-    application.add_handler(MessageHandler(filters.Regex("^📀 Boshqa Hind Kinolari$"), show_other_hindi_movies))
-
-    # Rus
-    application.add_handler(MessageHandler(filters.Regex("^💘 Ishdagi Ishq$"), show_love_in_work))
-    application.add_handler(MessageHandler(filters.Regex("^🎭 Shurikning Sarguzashtlari$"), show_shurik_adventures))
-    application.add_handler(MessageHandler(filters.Regex("^🔄 Ivan Vasilivich$"), show_ivan_vasilivich))
-    application.add_handler(MessageHandler(filters.Regex("^🔥 Gugurtga Ketib$"), show_match_going))
-    application.add_handler(MessageHandler(filters.Regex("^🕵️ If Qalqasing Mahbuzi$"), show_diamond_arm))
-    application.add_handler(MessageHandler(filters.Regex("^👶 O'nta Neger Bolasi$"), show_ten_negro_children))
-    application.add_handler(MessageHandler(filters.Regex("^⚔️ Qo'lga Tushmas Qasoskorlar$"), show_elusive_avengers))
-    application.add_handler(MessageHandler(filters.Regex("^🎬 Barcha Rus Kinolari$"), show_all_russian_movies))
-
-    # O'zbek
-    application.add_handler(MessageHandler(filters.Regex("^🏘️ Mahallada Duv-Duv Gap$"), show_mahalla_duv_duv_gap))
-    application.add_handler(MessageHandler(filters.Regex("^👰 Kelinlar Qo'zg'aloni$"), show_kelinlar_qozgaloni))
-    application.add_handler(MessageHandler(filters.Regex("^👨 Abdullajon$"), show_abdullajon))
-    application.add_handler(MessageHandler(filters.Regex("^😊 Suyinchi$"), show_suyinchi))
-    application.add_handler(MessageHandler(filters.Regex("^🌳 Chinor Ositidagi Duel$"), show_chinor_duel))
-    application.add_handler(MessageHandler(filters.Regex("^🙏 Yaratganga Shukur$"), show_yaratganga_shukur))
-    application.add_handler(MessageHandler(filters.Regex("^💃 Yor-Yor$"), show_yor_yor))
-    application.add_handler(MessageHandler(filters.Regex("^🎉 To'ylar Muborak$"), show_tuylar_muborak))
-    application.add_handler(MessageHandler(filters.Regex("^💣 Bomba$"), show_bomba))
-    application.add_handler(MessageHandler(filters.Regex("^😜 Shum Bola$"), show_shum_bola))
-    application.add_handler(MessageHandler(filters.Regex("^⚡ Temir Xotin$"), show_temir_xotin))
-    application.add_handler(MessageHandler(filters.Regex("^🎬 Barcha UZ Klassik Kinolari$"), show_all_uzbek_classic))
-
-    # Islomiy
-    application.add_handler(MessageHandler(filters.Regex("^📿 Umar Ibn Ali Hattob To'liq$"), show_umar_ibn_hattab))
-    application.add_handler(MessageHandler(filters.Regex("^🌙 Olamga Nur Sochgan Oy To'liq$"), show_nur_scattering_moon))
-    application.add_handler(MessageHandler(filters.Regex("^🎬 Barcha Islomiy Kinolar$"), show_all_islamic_movies))
-    application.add_handler(MessageHandler(filters.Regex("^📺 Barcha Islomiy Seriallar$"), show_all_islamic_series))
-
-    # Turk
-    application.add_handler(MessageHandler(filters.Regex("^👑 Sulton Abdulhamidhon$"), show_sultan_abdulhamid))
-    application.add_handler(MessageHandler(filters.Regex("^🐺 Qashqirlar Makoni$"), show_wolves_lair))
-    application.add_handler(MessageHandler(filters.Regex("^📺 Barcha Turk Seriallari$"), show_all_turkish_series))
-
-    # Bolalar
-    application.add_handler(MessageHandler(filters.Regex("^👦 Bola Uyda Yolg'iz 1-3$"), show_home_alone))
-    application.add_handler(MessageHandler(filters.Regex("^✈️ Uchuvchi Devid$"), show_flying_david))
-    application.add_handler(MessageHandler(filters.Regex("^⚡ Garry Poter 1-4$"), show_harry_potter))
-    application.add_handler(MessageHandler(filters.Regex("^🎬 Barcha Bolalar Kinolari$"), show_all_kids_movies))
-
-    # Multfilmlar
-    application.add_handler(MessageHandler(filters.Regex("^❄️ Muzlik Davri 1-3$"), show_ice_age))
-    application.add_handler(MessageHandler(filters.Regex("^🐭 Tom & Jerry$"), show_tom_jerry))
-    application.add_handler(MessageHandler(filters.Regex("^🐻 Bori va Quyon$"), show_winnie_pooh))
-    application.add_handler(MessageHandler(filters.Regex("^🍯 Ayiq va Masha$"), show_bear_and_masha))
-    application.add_handler(MessageHandler(filters.Regex("^🐼 Kungfu Panda 1-4$"), show_kungfu_panda))
-    application.add_handler(MessageHandler(filters.Regex("^🐎 Mustang$"), show_mustang))
-    application.add_handler(MessageHandler(filters.Regex("^🎬 Barcha Multfilmlar$"), show_all_cartoons))
-
-    # Koreys
-    application.add_handler(MessageHandler(filters.Regex("^🏙️ Jinoyatchilar Shahri 1-4$"), show_criminals_city))
-    application.add_handler(MessageHandler(filters.Regex("^🎬 Barcha Koreys Kinolari$"), show_all_korean_movies))
-    application.add_handler(MessageHandler(filters.Regex("^❄️ Qish Sonatasi 1-20$"), show_winter_sonata))
-    application.add_handler(MessageHandler(filters.Regex("^☀️ Yoz Ifori 1-20$"), show_summer_fever))
-    application.add_handler(MessageHandler(filters.Regex("^🏦 Va Bank 1-20$"), show_and_bank))
-    application.add_handler(MessageHandler(filters.Regex("^👑 Jumong Barcha Qismlar$"), show_jumong))
-    application.add_handler(MessageHandler(filters.Regex("^⚓ Dengiz Hukumdori Barcha Qismlar$"), show_sea_ruler))
-    application.add_handler(MessageHandler(filters.Regex("^📺 Barcha Koreys Seriallari$"), show_all_korean_series))
-    application.add_handler(MessageHandler(filters.Regex("^💖 Qalbim Chechagi 1-17$"), show_heartbeat))
-    
-    # Musiqa
-    application.add_handler(MessageHandler(filters.Regex("^🎵 O'zbek Musiqalari$"), show_uzbek_music))
-    application.add_handler(MessageHandler(filters.Regex("^🎶 Rus Musiqalari$"), show_russian_music))
-    application.add_handler(MessageHandler(filters.Regex("^🎼 Hind Musiqalari$"), show_hindi_music))
-    application.add_handler(MessageHandler(filters.Regex("^🎧 Turk Musiqalari$"), show_turkish_music))
-    application.add_handler(MessageHandler(filters.Regex("^🎤 Koreys Musiqalari$"), show_korean_music))
-    application.add_handler(MessageHandler(filters.Regex("^🎹 Barcha Musiqalar$"), show_all_music))
-
-    # ==================== NAVIGATSIYA HANDLERLARI ====================
-    application.add_handler(MessageHandler(filters.Regex("^⬅️ Oldingi$"), handle_previous_page))
-    application.add_handler(MessageHandler(filters.Regex("^Keyingi ➡️$"), handle_next_page))
-    application.add_handler(MessageHandler(filters.Regex("^🏠 Asosiy menyu$"), handle_main_menu_return))
-
-    # Orqaga qaytish handlerlari
-    application.add_handler(MessageHandler(filters.Regex("^🔙 Hollywood Kinolari$"), show_hollywood))
-    application.add_handler(MessageHandler(filters.Regex("^🔙 Hind Filmlari$"), show_hindi))
-    application.add_handler(MessageHandler(filters.Regex("^🔙 Rus Kinolari$"), show_russian_movies))
-    application.add_handler(MessageHandler(filters.Regex("^🔙 O'zbek Kinolari$"), show_uzbek_movies))
-    application.add_handler(MessageHandler(filters.Regex("^🔙 Islomiy Kinolar$"), show_islamic_movies))
-    application.add_handler(MessageHandler(filters.Regex("^🔙 Turk Seriallari$"), show_turkish_series))
-    application.add_handler(MessageHandler(filters.Regex("^🔙 Bolalar Kinolari$"), show_kids_movies))
-    application.add_handler(MessageHandler(filters.Regex("^🔙 Bolalar Multfilmlari$"), show_cartoons))
-    application.add_handler(MessageHandler(filters.Regex("^🔙 Koreys Kinolari$"), show_korean_movies))
-    application.add_handler(MessageHandler(filters.Regex("^🔙 Koreys Seriallari$"), show_korean_series))
-    application.add_handler(MessageHandler(filters.Regex("^🔙 Musiqa$"), show_music))
-    application.add_handler(MessageHandler(filters.Regex("^🔙 Kategoriyalar$"), show_categories))
-
-    # Sahifa raqamlari handleri
-    application.add_handler(MessageHandler(
-        filters.Regex(r"^(\d+|🔹 \d+)$"), 
-        handle_page_selection
-    ))
-    
-    # ==================== PULLIK HIZMATLAR HANDLERLARI ====================
-    application.add_handler(MessageHandler(filters.Regex("^💰 Pullik Kinolar$"), show_paid_movies))
-    application.add_handler(MessageHandler(filters.Regex("^📞 Adminga Xabar$"), contact_admin))
-    application.add_handler(MessageHandler(filters.Regex("^👀 Javobni Ko'rish$"), check_admin_response))
-    application.add_handler(MessageHandler(filters.Regex("^🔙 Orqaga$"), show_premium_services))
-    application.add_handler(MessageHandler(filters.Regex("^ℹ️ Qo'llanma$"), show_payment_instructions))
-    application.add_handler(MessageHandler(filters.Regex("^📝 Kontent so'rovi yuborish$"), contact_admin))
-    application.add_handler(MessageHandler(filters.Regex("^💳 To'lov chekini yuborish$"), contact_admin))
-    
-    # ==================== YANGI: PULLIK KONTENT HANDLERLARI ====================
-    application.add_handler(MessageHandler(filters.Regex("^🎬 Kino Sotib olish$"), show_paid_movies_purchase))
-    application.add_handler(MessageHandler(filters.Regex("^📺 Serial Sotib olish$"), show_paid_series_purchase))
-    application.add_handler(MessageHandler(filters.Regex("^🐰 Multfilm Sotib olish$"), show_paid_cartoons_purchase))
-    
-    # Pullik kontent tanlash handlerlari
-    application.add_handler(MessageHandler(filters.Regex("^💰 .+$"), handle_paid_content_selection))
-    
-    # To'lov tasdiqlash handlerlari
-    application.add_handler(MessageHandler(filters.Regex("^💳 To'lov qilish$"), handle_payment_confirmation))
-    application.add_handler(MessageHandler(filters.Regex("^📸 Chek yuborish$"), handle_payment_confirmation))
-    
-    # To'lov cheki handleri
-    application.add_handler(MessageHandler(
-        filters.PHOTO | (filters.TEXT & ~filters.COMMAND), 
-        handle_payment_receipt
-    ))
-    
-    # ==================== QIDIRUV HANDLERI ====================
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_search))
-
-    # ==================== ADMIN XABAR HANDLERI ====================
-    application.add_handler(MessageHandler(
-        filters.TEXT & ~filters.COMMAND & filters.User(admin_user_id) if admin_user_id else filters.ALL, 
-        handle_admin_messages
-    ))
-
-    # ==================== ADMIN FILE HANDLERLARI ====================
-    application.add_handler(MessageHandler(
-        (filters.VIDEO | filters.AUDIO | filters.PHOTO | filters.Document.ALL) & 
-        filters.User(admin_user_id) if admin_user_id else filters.Document.ALL, 
-        handle_admin_files
-    ))
-
-    # ==================== TO'LOV CHEKI HANDLERI ====================
-    application.add_handler(MessageHandler(
-        filters.PHOTO | (filters.TEXT & ~filters.COMMAND), 
-        handle_payment_receipt
-    ))
-    
-    # ==================== TIL HANDLERLARI ====================
-    application.add_handler(MessageHandler(filters.Regex("^🌐 Tilni tanlash$"), change_language))
-    application.add_handler(MessageHandler(filters.Regex("^🌐 Сменить язык$"), change_language))
-    application.add_handler(MessageHandler(filters.Regex("^🌐 Change language$"), change_language))
-
-    print("🚀 Bot ishga tushmoqda...")
-    application.run_polling()
-
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    asyncio.run(main())
