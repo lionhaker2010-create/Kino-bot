@@ -35,9 +35,38 @@ dp = Dispatcher()
 db = Database()
 admin_manager = AdminManager(db)
 
+async def auto_restart():
+    """Auto restart every 6 hours to prevent freezing"""
+    while True:
+        await asyncio.sleep(6 * 60 * 60)  # 6 hours
+        print(f"🔄 Auto-restart at {datetime.now()}")
+        # Bot will automatically restart when using Render
+
 print(f"🔄 Bot ishga tushmoqda...")
 print(f"🔑 Admin ID: {ADMIN_ID}")
 print(f"🤖 Bot token: {BOT_TOKEN[:10]}...")
+
+# ==============================================================================
+# -*-*- ASOSIY FUNKSIYA -*-*-
+# ==============================================================================
+
+async def main():
+    print("Bot ishga tushdi...")
+    
+    # Start auto-restart in background
+    asyncio.create_task(auto_restart())
+    
+    keep_alive()
+    await dp.start_polling(bot)
+    
+# -*-*- BAZA YARATISH -*-*-
+@dp.startup()
+async def on_startup():
+    db.init_db()  # Barcha jadvallarni yaratadi
+    print("Barcha jadvallar yaratildi/yangilandi")    
+
+if __name__ == "__main__":
+    asyncio.run(main())
 
 # ==============================================================================
 # -*-*- RO'YXATDAN O'TISH HOLATLARI -*-*-
