@@ -3855,22 +3855,12 @@ async def handle_other_messages(message: types.Message):
 async def main():
     print("Bot ishga tushdi...")
     
-    # Webhook ni o'chirish (local uchun)
-    if not os.getenv('RENDER'):
-        try:
-            await bot.delete_webhook(drop_pending_updates=True)
-            print("✅ Webhook o'chirildi - polling rejimi")
-        except Exception as e:
-            print(f"⚠️ Webhook o'chirishda xatolik: {e}")
-    
-    # Start auto-restart in background
-    asyncio.create_task(auto_restart())
-    
-    keep_alive()
-    
     # Webhook sozlamalari (Render uchun)
     if os.getenv('RENDER'):
         print("🌐 Webhook rejimi ishga tushmoqda...")
+        
+        # Webhook ni o'chirish (avvalgi webhook ni tozalash)
+        await bot.delete_webhook(drop_pending_updates=True)
         
         WEBHOOK_PATH = f"/webhook"
         WEBHOOK_URL = f"https://kino-bot-l3nw.onrender.com{WEBHOOK_PATH}"
@@ -3893,6 +3883,16 @@ async def main():
     else:
         # Polling mode - local uchun
         print("📡 Polling rejimi ishga tushmoqda...")
+        
+        # Localda webhook o'chirish
+        await bot.delete_webhook(drop_pending_updates=True)
+        
+        # Start auto-restart in background
+        asyncio.create_task(auto_restart())
+        
+        # keep_alive ni faqat localda chaqiramiz
+        keep_alive()
+        
         await dp.start_polling(bot)
     
 # -*-*- BAZA YARATISH -*-*-
