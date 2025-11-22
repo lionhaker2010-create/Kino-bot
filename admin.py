@@ -80,3 +80,46 @@ class AdminManager:
                 print(f"Xabar yuborishda xatolik user_id {user[0]}: {e}")
         
         return success_count, fail_count
+        
+    # -*-*- TO'LOV BILDIRISHNOMASI -*-*-
+    async def send_payment_notification_to_admin(self, bot: Bot, payment_data, receipt_file_id=None):
+        """Admin ga to'lov haqida bildirishnoma yuborish"""
+        
+        message_text = (
+            f"💰 **YANGI TO'LOV SO'ROVI!**\n\n"
+            f"👤 **Foydalanuvchi:** {payment_data['user_name']}\n"
+            f"🆔 **User ID:** {payment_data['user_id']}\n"
+            f"🎯 **Xizmat turi:** {payment_data['service_name']}\n"
+            f"💵 **Summa:** {payment_data['amount']:,} so'm\n"
+            f"📝 **Tavsif:** {payment_data['description']}\n"
+            f"🆔 **To'lov ID:** {payment_data['payment_id']}\n\n"
+            f"**Tasdiqlash uchun quyidagi tugmalardan birini bosing:**"
+        )
+        
+        from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+        
+        keyboard = [
+            [KeyboardButton(text=f"✅ Tasdiqlash #{payment_data['payment_id']}")],
+            [KeyboardButton(text=f"❌ Rad etish #{payment_data['payment_id']}")],
+            [KeyboardButton(text="📋 To'lovlar ro'yxati")]
+        ]
+        
+        try:
+            if receipt_file_id:
+                # Chek suratini yuborish
+                await bot.send_photo(
+                    chat_id=ADMIN_ID,
+                    photo=receipt_file_id,
+                    caption=message_text,
+                    reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+                )
+            else:
+                await bot.send_message(
+                    chat_id=ADMIN_ID,
+                    text=message_text,
+                    reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+                )
+            return True
+        except Exception as e:
+            print(f"❌ Admin ga xabar yuborishda xatolik: {e}")
+            return False    

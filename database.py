@@ -338,7 +338,53 @@ class Database:
                 'downloads_count': downloads_count,
                 'active_tickets': active_tickets,
                 'most_downloaded': "Kinolar"
-            }        
+            }
+
+        # -*-*- TO'LOVLAR JADVALINI YANGILASH -*-*-
+    def update_payments_table(self):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute('ALTER TABLE payments ADD COLUMN service_details TEXT')
+                print("✅ service_details ustuni qo'shildi")
+            except sqlite3.OperationalError:
+                print("✅ service_details ustuni allaqachon mavjud")
+
+    # -*-*- YANGI TO'LOV QO'SHISH -*-*-
+    def add_payment(self, user_id, amount, service_type, service_name, description, receipt_file_id=None):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                INSERT INTO payments (user_id, amount, payment_type, content_id, content_type, receipt_file_id, service_details)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (user_id, amount, service_type, 0, service_name, receipt_file_id, description))
+            conn.commit()
+            return cursor.lastrowid
+
+    # -*-*- TO'LOV MA'LUMOTLARINI OLISH -*-*-
+    def get_payment_by_id(self, payment_id):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM payments WHERE payment_id = ?', (payment_id,))
+            return cursor.fetchone()
+
+    # -*-*- YUKLAB OLISH CREDITLARI -*-*-
+    def add_download_credits(self, user_id, credits):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT OR REPLACE INTO user_credits (user_id, download_credits)
+                VALUES (?, ?)
+            ''', (user_id, credits))
+            conn.commit()
+
+    def get_download_credits(self, user_id):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT download_credits FROM user_credits WHERE user_id = ?', (user_id,))
+            result = cursor.fetchone()
+            return result[0] if result else 0            
     
     # ==========================================================================
     # -*-*- YANGI FOYDALANUVCHI QO'SHISH -*-*-

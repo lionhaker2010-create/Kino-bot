@@ -2909,10 +2909,12 @@ async def show_actor_movies(message: types.Message):
     "👑 Salmonkhan", "🌟 SayfAlihon", "🎭 Amitahbachchan",
     "🔥 MethunChakraborty", "🎥 Dharmendra", "🎞️ Raj Kapur"
 ]))
-async def show_indian_actor_movies(message: types.Message):
-    """Hind actor tanlanganda uning kinolarini ko'rsatish"""
-    actor_name = message.text
-    print(f"DEBUG: Hind actor tanlandi: {actor_name}")
+@dp.message(F.text == "🎬 Hind Filmlari")
+async def show_indian_actors(message: types.Message):
+    print("🔄 HIND HANDLER ISHGA TUSHDI!")
+    
+    categories = db.get_all_categories()
+    print(f"🔄 HIND ACTORLARI: {categories['sub_categories']['🎬 Hind Filmlari']}")
     
     # Actor nomidan emoji ni olib tashlash
     clean_actor_name = actor_name.split(' ', 1)[1] if ' ' in actor_name else actor_name
@@ -3158,6 +3160,10 @@ async def back_to_main(message: types.Message):
 # -*-*- PULLIK HIZMATLAR HANDLERLARI -*-*-
 # ==============================================================================
 
+# ==============================================================================
+# -*-*- PULLIK HIZMATLAR HANDLERLARI -*-*-
+# ==============================================================================
+
 @dp.message(F.text == "💎 Premium Obuna")
 async def premium_subscription(message: types.Message):
     await message.answer(
@@ -3192,6 +3198,179 @@ async def premium_subscription(message: types.Message):
         "📱 **Tel:** +998888882505"
     )
 
+# 🔥 YANGI TO'LOV HANDLERLARI
+@dp.message(F.text == "💎 Premium Obuna (130,000 so'm)")
+async def start_premium_payment(message: types.Message, state: FSMContext):
+    await state.update_data(
+        service_type="premium",
+        service_name="Premium Obuna",
+        amount=130000,
+        description="1 oylik premium obuna - barcha kinolar ochiladi"
+    )
+    await message.answer(
+        "💎 **Premium Obuna To'lovi**\n\n"
+        "🎯 **Xizmat:** 1 oylik Premium Obuna\n"
+        "💵 **Narx:** 130,000 so'm\n"
+        "✅ **Afzalliklar:**\n"
+        "• Barcha kinolar va seriallar\n"
+        "• Yuklab olish huquqi\n"
+        "• HD 1080p sifat\n\n"
+        "💳 **To'lov qilish uchun tugmani bosing:**",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="💳 Premium uchun to'lash")],
+                [KeyboardButton(text="🔙 Orqaga")]
+            ],
+            resize_keyboard=True
+        )
+    )
+
+@dp.message(F.text == "📥 Yuklab Olish (30,000 so'm)")
+async def start_download_payment(message: types.Message, state: FSMContext):
+    await state.update_data(
+        service_type="download", 
+        service_name="Kino Yuklab Olish",
+        amount=30000,
+        description="1 ta kino yuklab olish"
+    )
+    await message.answer(
+        "📥 **Yuklab Olish To'lovi**\n\n"
+        "🎯 **Xizmat:** Kino Yuklab Olish\n"
+        "💵 **Narx:** 30,000 so'm\n"
+        "✅ **Afzalliklar:**\n"
+        "• Telefonga yuklab olish\n"
+        "• HD 1080p sifat\n"
+        "• Cheksiz foydalanish\n\n"
+        "💳 **To'lov qilish uchun tugmani bosing:**",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="💳 Yuklab olish uchun to'lash")],
+                [KeyboardButton(text="🔙 Orqaga")]
+            ],
+            resize_keyboard=True
+        )
+    )
+
+@dp.message(F.text == "🎯 Maxsus Kontent (50,000 so'm)")
+async def start_exclusive_payment(message: types.Message, state: FSMContext):
+    await state.update_data(
+        service_type="exclusive",
+        service_name="Maxsus Kontent",
+        amount=50000,
+        description="Eksklyuziv kinolar va maxsus kontentlar"
+    )
+    await message.answer(
+        "🎯 **Maxsus Kontent To'lovi**\n\n"
+        "🎯 **Xizmat:** Maxsus Kontentlar\n"
+        "💵 **Narx:** 50,000 so'm\n"
+        "✅ **Afzalliklar:**\n"
+        "• Eksklyuziv kinolar\n"
+        "• Rejissor versiyalari\n"
+        "• Sahna ortidagi lavhalar\n\n"
+        "💳 **To'lov qilish uchun tugmani bosing:**",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="💳 Maxsus kontent uchun to'lash")],
+                [KeyboardButton(text="🔙 Orqaga")]
+            ],
+            resize_keyboard=True
+        )
+    )
+
+@dp.message(F.text == "🔧 Shaxsiy Qo'llab-quvvatlash (20,000 so'm)")
+async def start_support_payment(message: types.Message, state: FSMContext):
+    await state.update_data(
+        service_type="support",
+        service_name="Shaxsiy Qo'llab-quvvatlash",
+        amount=20000,
+        description="1 soatlik shaxsiy qo'llab-quvvatlash"
+    )
+    await message.answer(
+        "🔧 **Shaxsiy Qo'llab-quvvatlash To'lovi**\n\n"
+        "🎯 **Xizmat:** Shaxsiy Qo'llab-quvvatlash\n"
+        "💵 **Narx:** 20,000 so'm/soat\n"
+        "✅ **Afzalliklar:**\n"
+        "• Shaxsiy maslahat\n"
+        "• Texnik yordam\n"
+        "• Maxsus so'rovlar\n\n"
+        "💳 **To'lov qilish uchun tugmani bosing:**",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="💳 Qo'llab-quvvatlash uchun to'lash")],
+                [KeyboardButton(text="🔙 Orqaga")]
+            ],
+            resize_keyboard=True
+        )
+    )
+
+@dp.message(F.text.contains("to'lash"))
+async def process_payment_selection(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    
+    if not data:
+        await message.answer("❌ Xatolik! Avval xizmatni tanlang.", reply_markup=premium_services_keyboard())
+        return
+    
+    service_type = data.get('service_type')
+    service_name = data.get('service_name') 
+    amount = data.get('amount')
+    description = data.get('description')
+    
+    await message.answer(
+        f"💳 **{service_name} To'lovi**\n\n"
+        f"🎯 **Xizmat:** {service_name}\n"
+        f"📝 **Tavsif:** {description}\n"
+        f"💵 **Summa:** {amount:,} so'm\n\n"
+        f"🏦 **To'lov usullari:**\n"
+        f"• Karta: 9860 3501 4890 3205\n"
+        f"• Click: +998888882505\n\n"
+        f"📸 **To'lov qilgach, chekni yuboring:**",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="📸 Chek yuborish")],
+                [KeyboardButton(text="🔙 Orqaga")]
+            ],
+            resize_keyboard=True
+        )
+    )
+
+@dp.message(F.text == "📸 Chek yuborish")
+async def request_receipt(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    
+    if not data:
+        await message.answer("❌ Avval to'lov xizmatini tanlang!", reply_markup=premium_services_keyboard())
+        return
+        
+    service_name = data.get('service_name')
+    amount = data.get('amount')
+    
+    await message.answer(
+        f"📸 **Chek Yuborish**\n\n"
+        f"🎯 **Xizmat:** {service_name}\n"
+        f"💵 **Summa:** {amount:,} so'm\n\n"
+        f"To'lov chekini (screenshot) yuboring:\n"
+        f"• Yorqin va o'qiladigan bo'lsin\n"
+        f"• Summa va vaqt ko'rinsin\n"
+        f"• Karta raqami/to'lov raqami ko'rinsin",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    await state.set_state(PaymentState.waiting_payment_receipt)
+
+# -*-*- KLAVIATURA FUNKSIYASI -*-*-
+def premium_services_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="💎 Premium Obuna (130,000 so'm)"), KeyboardButton(text="📥 Yuklab Olish (30,000 so'm)")],
+            [KeyboardButton(text="🎯 Maxsus Kontent (50,000 so'm)"), KeyboardButton(text="🔧 Shaxsiy Qo'llab-quvvatlash (20,000 so'm)")],
+            [KeyboardButton(text="💳 To'lov qilish"), KeyboardButton(text="📸 Chek yuborish")],
+            [KeyboardButton(text="🔍 Obunani tekshirish"), KeyboardButton(text="📞 Admin bilan bog'lanish")],
+            [KeyboardButton(text="🔙 Asosiy Menyu")],
+        ],
+        resize_keyboard=True
+    )
+
+# MAVJUD HANDLERLAR (o'zgarmaydi)
 @dp.message(F.text == "📥 Yuklab Olish")
 async def download_service(message: types.Message):
     await message.answer(
@@ -3329,6 +3508,345 @@ async def subscription_packages(message: types.Message):
         "💳 Karta: 9860 3501 4890 3205\n"
         "📞 Admin: @Operator_Kino_1985"
     )
+    
+# ==============================================================================
+# -*-*- ADMIN BILAN BOG'LANISH HANDLERLARI -*-*-
+# ==============================================================================
+
+@dp.message(F.text == "📞 Admin bilan bog'lanish")
+async def contact_admin(message: types.Message):
+    await message.answer(
+        f"📞 **Admin bilan bog'lanish:**\n\n"
+        
+        f"👤 **Admin:** @Operator_Kino_1985\n"
+        f"📱 **Telefon:** +998888882505\n\n"
+        
+        f"💬 **Qanday murojaat qilish kerak:**\n"
+        f"1. To'lov chekini yuboring\n"
+        f"2. Foydalanuvchi ID ni yozing\n"
+        f"3. Qaysi xizmat uchun to'lov qilganingizni yozing\n\n"
+        
+        f"⏱️ **Javob berish vaqti:**\n"
+        f"• Odatiy: 1 soat ichida\n"
+        f"• Ish vaqtida: 15-30 daqiqa\n"
+        f"• Tushlik vaqti: 1-2 soat\n\n"
+        
+        f"📋 **Kerakli ma'lumotlar:**\n"
+        f"• To'lov cheki (screenshot)\n"
+        f"• Foydalanuvchi ID: {message.from_user.id}\n"
+        f"• Xizmat turi (Premium/Yuklab olish va h.k.)"
+    )    
+    
+@dp.message(F.text == "📋 To'lov Qo'llanmasi")
+async def payment_guide(message: types.Message):
+    await message.answer(
+        "📋 **To'lov Qo'llanmasi:**\n\n"
+        
+        "📸 **CHEK QANDAY BO'LISHI KERAK:**\n"
+        "• To'liq ekran screenshot\n"
+        "• Summa va vaqt aniq ko'rinsin\n"
+        "• Karta raqami/to'lov raqami ko'rinsin\n"
+        "• Yorqin va o'qiladigan bo'lsin\n\n"
+        
+        "⏰ **ISh VAQTI:**\n"
+        "• Dushanba - Juma: 9:00 - 22:00\n"
+        "• Shanba - Yakshanba: 10:00 - 20:00\n"
+        "• Tushlik: 13:00 - 14:00\n\n"
+        
+        "📞 **BOG'LANISH:**\n"
+        "• Telegram: @Operator_Kino_1985\n"
+        "• Telefon: +998888882505\n"
+        "• Xabar: \"Premium Obuna uchun to'lov\"\n\n"
+        
+        "⚠️ **ESLATMA:**\n"
+        "• Cheksiz obuna faollashtirilmaydi!\n"
+        "• Noto'g'ri chek yuborilsa, obuna berilmaydi!"
+    )    
+
+@dp.message(F.text == "💳 Karta orqali to'lash")
+async def card_payment(message: types.Message):
+    await message.answer(
+        "💳 **Karta orqali to'lov:**\n\n"
+        "🏦 **Bank:** Kapital Bank\n"
+        "💳 **Karta raqami:** 9860 3501 4890 3205\n"
+        "📱 **Karta turi:** HUMO\n"
+        "👤 **Karta egasi:** [Admin Ismi]\n\n"
+        "📋 **To'lov tartibi:**\n"
+        "1. Kerakli summani o'tkazing\n"
+        "2. To'lov chekini (screenshot) saqlang\n"
+        "3. Chekni @Operator_Kino_1985 ga yuboring\n"
+        "4. Xizmat faollashtiriladi\n\n"
+        "⏱️ **Faollashtirish:** 1 soat ichida"
+    )
+
+@dp.message(F.text == "📱 Click orqali to'lash")
+async def click_payment(message: types.Message):
+    await message.answer(
+        "📱 **Click orqali to'lov:**\n\n"
+        "🔢 **Telefon raqam:** +998 90 123 45 67\n"
+        "👤 **Ism:** [Admin Ismi]\n\n"
+        "📋 **To'lov tartibi:**\n"
+        "1. Click ilovasini oching\n"
+        "2. 'To'lov' bo'limiga o'ting\n"
+        "3. Yuqoridagi raqamga to'lov qiling\n"
+        "4. To'lov chekini saqlang\n"
+        "5. Chekni @Operator_Kino_1985 ga yuboring\n\n"
+        "⏱️ **Faollashtirish:** 1 soat ichida"
+    )
+    
+# -*-*- YANGI TO'LOV HANDLERLARI -*-*-
+
+@dp.message(F.text.startswith("✅ Tasdiqlash #"))
+async def confirm_payment(message: types.Message):
+    """To'lovni tasdiqlash va xizmatni faollashtirish"""
+    try:
+        payment_id = int(message.text.split("#")[1])
+        
+        # To'lov ma'lumotlarini olish
+        payment_info = db.get_payment_by_id(payment_id)
+        
+        if not payment_info:
+            await message.answer("❌ To'lov topilmadi!")
+            return
+            
+        user_id = payment_info[1]
+        service_type = payment_info[3]  # payment_type
+        service_name = payment_info[5]  # content_type
+        amount = payment_info[2]
+        
+        # Foydalanuvchi ma'lumotlari
+        user_info = db.get_user(user_id)
+        user_name = user_info[2] if user_info else "Noma'lum"
+        
+        # Xizmat turiga qarab amal bajaring
+        success_message = ""
+        
+        if service_type == "premium":
+            # Premium obuna berish (30 kun)
+            db.add_premium_subscription(user_id, 30, amount)
+            success_message = (
+                "✅ **Premium obuna faollashtirildi!**\n\n"
+                "🎉 Tabriklaymiz! Sizga 30 kunlik premium obuna berildi.\n\n"
+                "📋 **Ochilgan imkoniyatlar:**\n"
+                "• Barcha kinolar va seriallar\n"
+                "• Yuklab olish huquqi\n" 
+                "• HD 1080p sifat\n"
+                "• Yangi kontentlar avtomatik ochiladi\n\n"
+                "🎬 Endi barcha bo'limlardan foydalanishingiz mumkin!"
+            )
+            
+        elif service_type == "download":
+            # Yuklab olish huquqi berish (5 ta credit)
+            db.add_download_credits(user_id, 5)
+            success_message = (
+                "✅ **Yuklab olish huquqi berildi!**\n\n"
+                "📥 Sizga 5 ta yuklab olish crediti berildi.\n\n"
+                "💡 **Qanday foydalanish:**\n"
+                "1. Kerakli kinoni tanlang\n"
+                "2. '📥 Yuklab olish' tugmasini bosing\n"
+                "3. Video telefonizingizga yuklanadi\n\n"
+                "⚠️ **Eslatma:** Har bir yuklab olish 1 credit sarflaydi"
+            )
+            
+        elif service_type == "exclusive":
+            # Maxsus kontent ochish
+            success_message = (
+                "✅ **Maxsus kontentlar ochildi!**\n\n"
+                "🎯 Endi sizda quyidagi imkoniyatlar mavjud:\n"
+                "• Eksklyuziv kinolar\n"
+                "• Rejissor versiyalari\n"
+                "• Sahna ortidagi lavhalar\n"
+                "• Aktyorlar intervyulari\n\n"
+                "📁 '🎯 Maxsus Kontentlar' bo'limiga o'ting"
+            )
+            
+        elif service_type == "support":
+            # Qo'llab-quvvatlash aktivlashtirish
+            success_message = (
+                "✅ **Shaxsiy qo'llab-quvvatlash faollashtirildi!**\n\n"
+                "🔧 Endi siz quyidagi xizmatlardan foydalanishingiz mumkin:\n"
+                "• Shaxsiy maslahat\n"
+                "• Texnik yordam\n"
+                "• Maxsus so'rovlar\n"
+                "• 24/7 javob\n\n"
+                "📞 Admin: @Operator_Kino_1985"
+            )
+        
+        # Foydalanuvchiga xabar
+        try:
+            await bot.send_message(user_id, success_message)
+        except Exception as e:
+            print(f"Foydalanuvchiga xabar yuborishda xatolik: {e}")
+        
+        # To'lov statusini yangilash
+        db.update_payment_status(payment_id, "completed")
+        
+        # Admin ga xabar
+        await message.answer(
+            f"✅ **To'lov #{payment_id} tasdiqlandi!**\n\n"
+            f"👤 Foydalanuvchi: {user_name}\n"
+            f"🆔 ID: {user_id}\n"
+            f"🎯 Xizmat: {service_name}\n"
+            f"💵 Summa: {amount:,} so'm\n\n"
+            f"Foydalanuvchiga xabar yuborildi.",
+            reply_markup=admin_advanced_keyboard()
+        )
+        
+    except Exception as e:
+        await message.answer(f"❌ Xatolik: {e}")
+
+# -*-*- FOYDALANUVCHI OBUNASINI TEKSHIRISH -*-*-
+@dp.message(F.text == "🔍 Obunani tekshirish")
+async def check_subscription_detailed(message: types.Message):
+    """Batafsil obuna holatini ko'rsatish"""
+    user_id = message.from_user.id
+    user_info = db.get_user_info(user_id)
+    premium_status = db.check_premium_status(user_id)
+    download_credits = db.get_download_credits(user_id)
+    
+    user_name = user_info[2] if user_info else "Foydalanuvchi"
+    
+    if premium_status:
+        await message.answer(
+            f"✅ **PREMIUM OBUNA FAOL**\n\n"
+            f"👤 **Ism:** {user_name}\n"
+            f"💎 **Status:** Premium\n"
+            f"📅 **Qolgan muddat:** 30 kun\n"
+            f"📥 **Yuklab olish creditlari:** {download_credits} ta\n"
+            f"🎬 **Ochilgan bo'limlar:** Barchasi\n\n"
+            f"⭐ **Sizda barcha imkoniyatlar mavjud!**"
+        )
+    else:
+        await message.answer(
+            f"❌ **PREMIUM OBUNA FAOL EMAS**\n\n"
+            f"👤 **Ism:** {user_name}\n"
+            f"💎 **Status:** Oddiy foydalanuvchi\n"
+            f"📥 **Yuklab olish creditlari:** {download_credits} ta\n\n"
+            f"💳 **Premium obuna uchun to'lov qiling!**\n"
+            f"💰 **Narxi:** 130,000 so'm/oy\n\n"
+            f"📞 **Admin:** @Operator_Kino_1985"
+        )    
+        
+# -*-*- YANGI TO'LOV TIZIMI -*-*-
+
+@dp.message(F.text.contains("uchun to'lash"))
+async def process_payment_request(message: types.Message, state: FSMContext):
+    """Yangi to'lov tizimi"""
+    data = await state.get_data()
+    
+    if not data:
+        await message.answer("❌ Xatolik! Avval xizmatni tanlang.", reply_markup=premium_services_keyboard())
+        return
+    
+    service_type = data.get('service_type')
+    service_name = data.get('service_name') 
+    amount = data.get('amount')
+    description = data.get('description')
+    
+    # To'lov ma'lumotlarini state ga saqlash
+    await state.update_data(
+        service_type=service_type,
+        service_name=service_name,
+        amount=amount,
+        description=description
+    )
+    
+    await message.answer(
+        f"💳 **{service_name} To'lovi**\n\n"
+        f"🎯 **Xizmat:** {service_name}\n"
+        f"📝 **Tavsif:** {description}\n"
+        f"💵 **Summa:** {amount:,} so'm\n\n"
+        f"🏦 **To'lov usullari:**\n"
+        f"• 💳 Karta: 9860 3501 4890 3205 (HUMO)\n"
+        f"• 📱 Click: +998888882505\n\n"
+        f"📸 **To'lov qilgach, chekni yuboring:**",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="📸 Chek yuborish")],
+                [KeyboardButton(text="🔙 Orqaga")]
+            ],
+            resize_keyboard=True
+        )
+    )
+
+# -*-*- YANGI TO'LOV CHEK QABUL QILISH -*-*-
+@dp.message(PaymentState.waiting_payment_receipt, F.photo)
+async def process_payment_receipt_new(message: types.Message, state: FSMContext):
+    """Yangi to'lov tizimi - chek qabul qilish"""
+    receipt_file_id = message.photo[-1].file_id
+    
+    # State dan TO'LIQ MA'LUMOTLARNI OLISH
+    data = await state.get_data()
+    service_type = data.get('service_type')
+    service_name = data.get('service_name')
+    amount = data.get('amount')
+    description = data.get('description')
+    
+    if not service_type:
+        await message.answer("❌ Xatolik! Ma'lumotlar topilmadi. Qaytadan boshlang.")
+        await state.clear()
+        return
+    
+    # To'lovni bazaga yozish
+    payment_id = db.add_payment(
+        user_id=message.from_user.id,
+        amount=amount,
+        service_type=service_type,
+        service_name=service_name,
+        description=description,
+        receipt_file_id=receipt_file_id
+    )
+    
+    # Foydalanuvchi ma'lumotlari
+    user_info = db.get_user(message.from_user.id)
+    user_name = user_info[2] if user_info else "Noma'lum"
+    
+    # Admin ga bildirishnoma yuborish
+    payment_data = {
+        'payment_id': payment_id,
+        'user_id': message.from_user.id,
+        'user_name': user_name,
+        'service_name': service_name,
+        'amount': amount,
+        'description': description
+    }
+    
+    # Loading animatsiyasi
+    loading_msg = await message.answer("🔄 **To'lov tekshirilmoqda...**")
+    
+    # Animatsiya
+    for i in range(5):
+        await loading_msg.edit_text(f"🔄 **To'lov tekshirilmoqda{'.' * (i + 1)}**")
+        await asyncio.sleep(0.5)
+    
+    # Admin ga xabar yuborish
+    success = await admin_manager.send_payment_notification_to_admin(bot, payment_data, receipt_file_id)
+    
+    if success:
+        await loading_msg.edit_text(
+            "✅ **To'lov cheki qabul qilindi!**\n\n"
+            f"🎯 **Xizmat:** {service_name}\n"
+            f"💵 **Summa:** {amount:,} so'm\n"
+            f"🆔 **To'lov ID:** {payment_id}\n\n"
+            f"⏳ **Admin tomonidan tekshirilmoqda...**\n"
+            f"📞 **Agar 1 soat ichida javob bo'lmasa, @Operator_Kino_1985 ga murojaat qiling.**"
+        )
+    else:
+        await loading_msg.edit_text(
+            "❌ **Xatolik! Admin ga xabar yuborish muvaffaqiyatsiz.**\n\n"
+            f"Iltimos, to'g'ridan-to'g'ri @Operator_Kino_1985 ga yuboring:\n"
+            f"• To'lov cheki\n"
+            f"• To'lov ID: {payment_id}\n"
+            f"• Xizmat turi: {service_name}"
+        )
+    
+    # Foydalanuvchiga asosiy menyuni qaytarish
+    await message.answer(
+        "Asosiy menyuga qaytingiz:",
+        reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
+    )
+    
+    await state.clear()        
     
 # ==============================================================================
 # -*-*- ADMIN BILAN BOG'LANISH HANDLERLARI -*-*-
