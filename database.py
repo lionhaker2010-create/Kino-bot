@@ -408,12 +408,7 @@ class Database:
             ''')
             return cursor.fetchall()
 
-    # ==============================================================================
-    # -*-*- BARCHA BO'LIMLAR VA ICHKI BO'LIMLAR -*-*-
-    # ==============================================================================
-    # ==============================================================================
-    # -*-*- BARCHA BO'LIMLAR VA ICHKI BO'LIMLAR -*-*-
-    # ==============================================================================
+    
     def get_all_categories(self):
         """Barcha asosiy va ichki bo'limlarni qaytarish"""
         print("DEBUG: get_all_categories called")
@@ -435,7 +430,7 @@ class Database:
                     "😂 Jim Cerry", "🏴‍☠️ Jonni Depp", "🥋 Jet Lee", 
                     "👊 Mark Dacascos", "🎬 Bred Pitt", "🎭 Leonardo Dicaprio"
                 ],
-                # HIND ACTORLARI - ENDI TO'LDIRILDI
+                # HIND ACTORLARI - TO'LDIRILDI
                 "🎬 Hind Filmlari": [
                     "🤴 Shakruhkhan", "🎬 Amirkhan", "💪 Akshay Kumar",
                     "👑 Salmonkhan", "🌟 SayfAlihon", "🎭 Amitahbachchan",
