@@ -427,7 +427,7 @@ class Database:
                 "🎯 Qisqa Filmlar", "🎤 Konsert Dasturlari"
             ],
             "sub_categories": {
-                # FAQAT HOLLYWOOD DA ACTORLAR
+                # HOLLYWOOD ACTORLARI
                 "🎭 Hollywood Kinolari": [
                     "🎬 Mel Gibson", "💪 Arnold Schwarzenegger", "🥊 Sylvester Stallone",
                     "🚗 Jason Statham", "🐲 Jeki Chan", "🥋 Skod Adkins",
@@ -435,8 +435,13 @@ class Database:
                     "😂 Jim Cerry", "🏴‍☠️ Jonni Depp", "🥋 Jet Lee", 
                     "👊 Mark Dacascos", "🎬 Bred Pitt", "🎭 Leonardo Dicaprio"
                 ],
+                # HIND ACTORLARI - ENDI TO'LDIRILDI
+                "🎬 Hind Filmlari": [
+                    "🤴 Shakruhkhan", "🎬 Amirkhan", "💪 Akshay Kumar",
+                    "👑 Salmonkhan", "🌟 SayfAlihon", "🎭 Amitahbachchan",
+                    "🔥 MethunChakraborty", "🎥 Dharmendra", "🎞️ Raj Kapur"
+                ],
                 # BOSHQA KATEGORIYALARDA ICHKI BO'LIM YO'Q
-                "🎬 Hind Filmlari": [],
                 "📺 Hind Seriallari": [],
                 "🎥 Rus Kinolari": [],
                 "📟 Rus Seriallari": [],
