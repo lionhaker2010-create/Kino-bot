@@ -2417,70 +2417,67 @@ async def back_from_payment(message: types.Message, state: FSMContext):
 
     
 # ==============================================================================
-# -*-*- HOLLYWOOD KINOLARINI KO'RSATISH -*-*-
+# -*-*- HOLLYWOOD ACTORLARINI KO'RSATISH -*-*-
 # ==============================================================================
 @dp.message(F.text == "🎭 Hollywood Kinolari")
-async def show_hollywood_movies(message: types.Message):
-    """Hollywood kinolarini ko'rsatish"""
-    movies = db.get_movies_by_category("🎭 Hollywood")
+async def show_hollywood_actors(message: types.Message):
+    """Hollywood actorlarini ko'rsatish"""
+    print("DEBUG: Hollywood kategoriyasi bosildi - actorlar ko'rsatiladi")
     
-    if not movies:
+    # Actorlar ro'yxatini olish
+    categories = db.get_all_categories()
+    hollywood_actors = categories["sub_categories"].get("🎭 Hollywood Kinolari", [])
+    
+    if not hollywood_actors:
         await message.answer(
-            "❌ Hozircha bu bo'limda kinolar mavjud emas.",
+            "❌ Hollywood actorlari topilmadi.",
             reply_markup=get_category_keyboard("main")
         )
         return
     
+    # Actorlar klaviaturasini yaratish
     keyboard = []
-    for movie in movies:
-        # 11 TA USTUNNI OLISH
-        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
-        button_text = f"🎬 {title}"
-        if actor_name:
-            button_text += f" - {actor_name}"
-        keyboard.append([KeyboardButton(text=button_text)])
+    for actor in hollywood_actors:
+        keyboard.append([KeyboardButton(text=actor)])
     
     keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
     
     await message.answer(
         f"🎭 **Hollywood Kinolari**\n\n"
-        f"Jami: {len(movies)} ta kino\n\n"
-        f"Kerakli kinoni tanlang:",
+        f"Aktyorni tanlang:",
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     ) 
     
         
 # ==============================================================================
-# -*-*- BARCHA BO'LIMLAR UCHUN KINO KO'RSATISH -*-*-
+# -*-*- HIND ACTORLARINI KO'RSATISH -*-*-
 # ==============================================================================
-
 @dp.message(F.text == "🎬 Hind Filmlari")
-async def show_indian_movies(message: types.Message):
-    """Hind filmlarini ko'rsatish"""
-    movies = db.get_movies_by_category("🎬 Hind")
+async def show_indian_actors(message: types.Message):
+    """Hind actorlarini ko'rsatish"""
+    print("DEBUG: Hind kategoriyasi bosildi - actorlar ko'rsatiladi")
     
-    if not movies:
+    # Actorlar ro'yxatini olish
+    categories = db.get_all_categories()
+    indian_actors = categories["sub_categories"].get("🎬 Hind Filmlari", [])
+    
+    if not indian_actors:
         await message.answer(
-            "❌ Hozircha bu bo'limda kinolar mavjud emas.",
+            "❌ Hind actorlari topilmadi.",
             reply_markup=get_category_keyboard("main")
         )
         return
     
+    # Actorlar klaviaturasini yaratish
     keyboard = []
-    for movie in movies:
-        # 11 TA USTUN
-        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
-        button_text = f"🎬 {title}"
-        if actor_name:
-            button_text += f" - {actor_name}"
-        keyboard.append([KeyboardButton(text=button_text)])
+    for actor in indian_actors:
+        keyboard.append([KeyboardButton(text=actor)])
     
     keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
     
     await message.answer(
         f"🎬 **Hind Filmlari**\n\n"
-        f"Jami: {len(movies)} ta kino\n\n"
-        f"Kerakli kinoni tanlang:",
+        f"Aktyorni tanlang:",
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
 
@@ -2860,6 +2857,90 @@ async def show_korean_series(message: types.Message):
         f"Kerakli serialni tanlang:",
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
+    
+# ==============================================================================
+# -*-*- ACTOR TANLANGANDA KINOLARNI KO'RSATISH -*-*-
+# ==============================================================================
+
+# Hollywood actorlari uchun
+@dp.message(F.text.in_([
+    "🎬 Mel Gibson", "💪 Arnold Schwarzenegger", "🥊 Sylvester Stallone",
+    "🚗 Jason Statham", "🐲 Jeki Chan", "🥋 Skod Adkins",
+    "🎭 Denzil Washington", "💥 Jan Clod Van Dam", "👊 Brus lee",
+    "😂 Jim Cerry", "🏴‍☠️ Jonni Depp", "🥋 Jet Lee", 
+    "👊 Mark Dacascos", "🎬 Bred Pitt", "🎭 Leonardo Dicaprio"
+]))
+async def show_actor_movies(message: types.Message):
+    """Actor tanlanganda uning kinolarini ko'rsatish"""
+    actor_name = message.text
+    print(f"DEBUG: Actor tanlandi: {actor_name}")
+    
+    # Actor nomidan emoji ni olib tashlash
+    clean_actor_name = actor_name.split(' ', 1)[1] if ' ' in actor_name else actor_name
+    
+    # Actorning kinolarini olish
+    movies = db.get_movies_by_category(f"🎭 Hollywood - {clean_actor_name}")
+    
+    if not movies:
+        await message.answer(
+            f"❌ {actor_name} ning kinolari topilmadi.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Aktyorlarga qaytish")])
+    
+    await message.answer(
+        f"🎭 **{actor_name} Kinolari**\n\n"
+        f"Jami: {len(movies)} ta kino\n\n"
+        f"Kerakli kinoni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+# Hind actorlari uchun
+@dp.message(F.text.in_([
+    "🤴 Shakruhkhan", "🎬 Amirkhan", "💪 Akshay Kumar",
+    "👑 Salmonkhan", "🌟 SayfAlihon", "🎭 Amitahbachchan",
+    "🔥 MethunChakraborty", "🎥 Dharmendra", "🎞️ Raj Kapur"
+]))
+async def show_indian_actor_movies(message: types.Message):
+    """Hind actor tanlanganda uning kinolarini ko'rsatish"""
+    actor_name = message.text
+    print(f"DEBUG: Hind actor tanlandi: {actor_name}")
+    
+    # Actor nomidan emoji ni olib tashlash
+    clean_actor_name = actor_name.split(' ', 1)[1] if ' ' in actor_name else actor_name
+    
+    # Actorning kinolarini olish
+    movies = db.get_movies_by_category(f"🎬 Hind - {clean_actor_name}")
+    
+    if not movies:
+        await message.answer(
+            f"❌ {actor_name} ning kinolari topilmadi.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Aktyorlarga qaytish")])
+    
+    await message.answer(
+        f"🎬 **{actor_name} Kinolari**\n\n"
+        f"Jami: {len(movies)} ta kino\n\n"
+        f"Kerakli kinoni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )    
 
 @dp.message(F.text == "🎯 Qisqa Filmlar")
 async def show_short_films(message: types.Message):
@@ -3039,6 +3120,7 @@ def turkish_series_keyboard():
         ],
         resize_keyboard=True
     )
+        
 
 # ==============================================================================
 # -*-*- NAVIGATSIYA HANDLERLARI -*-*-
@@ -3064,6 +3146,13 @@ async def back_to_premium_services(message: types.Message):
         "💵 Pullik xizmatlar menyusiga qaytingiz:",
         reply_markup=premium_services_keyboard()
     )
+    
+@dp.message(F.text == "🔙 Asosiy Menyu")
+async def back_to_main(message: types.Message):
+    await message.answer(
+        "Asosiy menyuga qaytingiz:",
+        reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
+    )    
 
 # ==============================================================================
 # -*-*- PULLIK HIZMATLAR HANDLERLARI -*-*-
