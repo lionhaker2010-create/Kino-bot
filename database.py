@@ -411,8 +411,12 @@ class Database:
     # ==============================================================================
     # -*-*- BARCHA BO'LIMLAR VA ICHKI BO'LIMLAR -*-*-
     # ==============================================================================
+    # ==============================================================================
+    # -*-*- BARCHA BO'LIMLAR VA ICHKI BO'LIMLAR -*-*-
+    # ==============================================================================
     def get_all_categories(self):
         """Barcha asosiy va ichki bo'limlarni qaytarish"""
+        print("DEBUG: get_all_categories called")
         return {
             "main_categories": [
                 "🎭 Hollywood Kinolari", "🎬 Hind Filmlari", "📺 Hind Seriallari",
@@ -451,7 +455,7 @@ class Database:
             }
         }
         
-    # -*-*- FOYDALANUVCHI SOTIB OLGAN KONTENTLAR -*-*-
+   
     # ==============================================================================
     # -*-*- FOYDALANUVCHI SOTIB OLGAN KONTENTLAR -*-*-
     # ==============================================================================
