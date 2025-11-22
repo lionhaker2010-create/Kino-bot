@@ -27,18 +27,18 @@ def keep_alive():
     server = Thread(target=run)
     server.start()
 
-# HAR 10 DAQIQADA PING YUBORISH
+# 🔥 YANGILANGAN PING FUNKSIYASI
 def start_pinging():
     print("🔄 Auto-ping service started!")
     
-    # Render URL ni olish
-    render_url = os.environ.get('RENDER_EXTERNAL_URL', 'https://kino-bot-08ke.onrender.com')
+    render_url = 'https://kino-bot-08ke.onrender.com'
     
     while True:
         try:
-            # Har 10 daqiqada ping yuborish
-            response = requests.get(f"{render_url}/", timeout=10)
-            print(f"🔄 Ping sent - Status: {response.status_code}")
+            # Har 10 daqiqada ping
+            requests.get(f"{render_url}/", timeout=5)
+            requests.get(f"{render_url}/health", timeout=5)
+            print(f"🔄 Ping sent - {time.strftime('%H:%M:%S')}")
         except Exception as e:
             print(f"❌ Ping failed: {e}")
         
