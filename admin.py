@@ -15,7 +15,10 @@ ADMIN_USERNAME = "Operator_Kino_1985"
 # -*-*- REKLAMA HOLATLARI -*-*-
 # ==============================================================================
 class AdvertisementState(StatesGroup):
-    waiting_ad_text = State()
+    waiting_ad_type = State()        # YANGI: Reklama turi
+    waiting_ad_text = State()        # Matn reklama
+    waiting_ad_photo = State()       # YANGI: Rasm reklama  
+    waiting_ad_video = State()       # YANGI: Video reklama
     waiting_ad_confirmation = State()
 
 # ==============================================================================

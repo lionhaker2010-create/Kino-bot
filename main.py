@@ -4224,16 +4224,200 @@ async def premium_stats(message: types.Message):
     else:
         await message.answer("Sizga ruxsat yo'q!")
 
+# ==============================================================================
+# -*-*- YANGI REKLAMA TIZIMI -*-*-
+# ==============================================================================
+
 @dp.message(F.text == "📢 Reklama yuborish")
-async def send_advertisement(message: types.Message, state: FSMContext):
+async def start_advertisement(message: types.Message, state: FSMContext):
     if admin_manager.is_admin(message.from_user.id, message.from_user.username):
         await message.answer(
-            "📢 Reklama matnini yuboring:",
+            "📢 **Reklama turini tanlang:**\n\n"
+            "• 📝 Matn reklama - Oddiy xabar\n"
+            "• 🖼️ Rasm reklama - Rasm bilan xabar\n" 
+            "• 🎬 Video reklama - Video bilan xabar\n\n"
+            "Qaysi turdagi reklama yubormoqchisiz?",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard=[
+                    [KeyboardButton(text="📝 Matn reklama")],
+                    [KeyboardButton(text="🖼️ Rasm reklama")],
+                    [KeyboardButton(text="🎬 Video reklama")],
+                    [KeyboardButton(text="🔙 Admin Panel")]
+                ],
+                resize_keyboard=True
+            )
+        )
+        await state.set_state(AdvertisementState.waiting_ad_type)
+    else:
+        await message.answer("Sizga ruxsat yo'q!")
+
+@dp.message(AdvertisementState.waiting_ad_type)
+async def process_ad_type(message: types.Message, state: FSMContext):
+    if message.text == "🔙 Admin Panel":
+        await message.answer("Admin panelga qaytingiz:", reply_markup=admin_advanced_keyboard())
+        await state.clear()
+        return
+        
+    ad_type = message.text
+    await state.update_data(ad_type=ad_type)
+    
+    if ad_type == "📝 Matn reklama":
+        await message.answer(
+            "📝 **Matn reklamani yuboring:**\n\n"
+            "Reklama matnini kiriting:",
             reply_markup=ReplyKeyboardRemove()
         )
         await state.set_state(AdvertisementState.waiting_ad_text)
+        
+    elif ad_type == "🖼️ Rasm reklama":
+        await message.answer(
+            "🖼️ **Rasm reklamani yuboring:**\n\n"
+            "Avval rasmni yuboring:",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        await state.set_state(AdvertisementState.waiting_ad_photo)
+        
+    elif ad_type == "🎬 Video reklama":
+        await message.answer(
+            "🎬 **Video reklamani yuboring:**\n\n" 
+            "Avval videoni yuboring:",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        await state.set_state(AdvertisementState.waiting_ad_video)
+        
     else:
-        await message.answer("Sizga ruxsat yo'q!")
+        await message.answer("Iltimos, quyidagilardan birini tanlang:")
+
+@dp.message(AdvertisementState.waiting_ad_text)
+async def process_ad_text(message: types.Message, state: FSMContext):
+    ad_text = message.text
+    await state.update_data(ad_text=ad_text)
+    
+    await message.answer(
+        f"📋 **Reklama ko'rinishi:**\n\n{ad_text}\n\n"
+        f"✅ **Tasdiqlaysizmi?**\n\n"
+        f"Bu reklama barcha foydalanuvchilarga yuboriladi.",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="✅ Ha, yuborish"), KeyboardButton(text="❌ Bekor qilish")]
+            ],
+            resize_keyboard=True
+        )
+    )
+    await state.set_state(AdvertisementState.waiting_ad_confirmation)
+
+@dp.message(AdvertisementState.waiting_ad_photo, F.photo)
+async def process_ad_photo(message: types.Message, state: FSMContext):
+    photo_file_id = message.photo[-1].file_id
+    await state.update_data(photo_file_id=photo_file_id)
+    
+    await message.answer(
+        "🖼️ **Endi rasm uchun matn kiriting:**\n\n"
+        "Rasm tagiga chiqadigan matnni yuboring:",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    # Holatni o'zgartirmaymiz
+
+@dp.message(AdvertisementState.waiting_ad_photo)
+async def process_ad_photo_text(message: types.Message, state: FSMContext):
+    ad_text = message.text
+    data = await state.get_data()
+    photo_file_id = data.get('photo_file_id')
+    
+    await state.update_data(ad_text=ad_text)
+    
+    await message.answer_photo(
+        photo=photo_file_id,
+        caption=f"📋 **Rasm reklama ko'rinishi:**\n\n{ad_text}",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="✅ Ha, yuborish"), KeyboardButton(text="❌ Bekor qilish")]
+            ],
+            resize_keyboard=True
+        )
+    )
+    await state.set_state(AdvertisementState.waiting_ad_confirmation)
+
+@dp.message(AdvertisementState.waiting_ad_video, F.video)
+async def process_ad_video(message: types.Message, state: FSMContext):
+    video_file_id = message.video.file_id
+    await state.update_data(video_file_id=video_file_id)
+    
+    await message.answer(
+        "🎬 **Endi video uchun matn kiriting:**\n\n"
+        "Video tagiga chiqadigan matnni yuboring:",
+        reply_markup=ReplyKeyboardRemove()
+    )
+
+@dp.message(AdvertisementState.waiting_ad_video)
+async def process_ad_video_text(message: types.Message, state: FSMContext):
+    ad_text = message.text
+    data = await state.get_data()
+    video_file_id = data.get('video_file_id')
+    
+    await state.update_data(ad_text=ad_text)
+    
+    await message.answer_video(
+        video=video_file_id,
+        caption=f"📋 **Video reklama ko'rinishi:**\n\n{ad_text}",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="✅ Ha, yuborish"), KeyboardButton(text="❌ Bekor qilish")]
+            ],
+            resize_keyboard=True
+        )
+    )
+    await state.set_state(AdvertisementState.waiting_ad_confirmation)
+
+@dp.message(AdvertisementState.waiting_ad_confirmation)
+async def process_ad_confirmation(message: types.Message, state: FSMContext):
+    if message.text == "✅ Ha, yuborish":
+        data = await state.get_data()
+        ad_type = data.get('ad_type')
+        ad_text = data.get('ad_text')
+        
+        loading_msg = await message.answer("🔄 Reklama yuborilmoqda...")
+        
+        success_count = 0
+        fail_count = 0
+        
+        users = db.get_all_users()
+        
+        for user in users:
+            try:
+                if ad_type == "📝 Matn reklama":
+                    await bot.send_message(user[0], ad_text)
+                elif ad_type == "🖼️ Rasm reklama":
+                    photo_file_id = data.get('photo_file_id')
+                    await bot.send_photo(user[0], photo=photo_file_id, caption=ad_text)
+                elif ad_type == "🎬 Video reklama":
+                    video_file_id = data.get('video_file_id')
+                    await bot.send_video(user[0], video=video_file_id, caption=ad_text)
+                
+                success_count += 1
+                await asyncio.sleep(0.1)  # Spamdan qochish
+                
+            except Exception as e:
+                fail_count += 1
+                print(f"Reklama yuborishda xatolik user_id {user[0]}: {e}")
+        
+        await loading_msg.delete()
+        await message.answer(
+            f"✅ **Reklama yuborildi!**\n\n"
+            f"📊 Natijalar:\n"
+            f"• ✅ Muvaffaqiyatli: {success_count} ta\n"
+            f"• ❌ Xatolik: {fail_count} ta\n"
+            f"• 📨 Jami: {len(users)} ta",
+            reply_markup=admin_advanced_keyboard()
+        )
+        
+    else:
+        await message.answer(
+            "❌ Reklama yuborish bekor qilindi.",
+            reply_markup=admin_advanced_keyboard()
+        )
+    
+    await state.clear()
 
 @dp.message(F.text == "👑 Premium Boshqaruv")
 async def premium_management(message: types.Message):
