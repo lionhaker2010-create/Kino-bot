@@ -812,11 +812,23 @@ async def process_main_category(message: types.Message, state: FSMContext):
         return
         
     await state.update_data(main_category=message.text)
-    await message.answer(
-        f"📁 **{message.text}** bo'limi uchun ichki kategoriyani tanlang:",
-        reply_markup=get_category_keyboard("sub", message.text)
-    )
-    await state.set_state(ContentManagementState.waiting_sub_category)
+    
+    # AGAR HOLLYWOOD BO'LSA, ACTOR TANLASH
+    if message.text == "🎭 Hollywood Kinolari":
+        await message.answer(
+            f"📁 **{message.text}** bo'limi uchun aktyorni tanlang:",
+            reply_markup=get_category_keyboard("sub", message.text)
+        )
+        await state.set_state(ContentManagementState.waiting_sub_category)
+    else:
+        # BOSHQA KATEGORIYALARDA TO'GRIDAN-TO'G'RI NARX SO'RASH
+        await message.answer(
+            "💵 Kino narxini kiriting (so'mda):\n0 - Bepul\n30000 - Yuklab olish uchun",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        await state.set_state(ContentManagementState.waiting_movie_price)
+        # Actor nomini None qilib saqlaymiz
+        await state.update_data(sub_category="", actor="")
 
 # -*-*- ICHKI KATEGORIYA TANLASH -*-*-
 @dp.message(ContentManagementState.waiting_sub_category)
@@ -3542,9 +3554,26 @@ async def handle_other_messages(message: types.Message):
 # -*-*- ASOSIY FUNKSIYA -*-*-
 # ==============================================================================
 
+# main.py faylining ENG OXIRIGA qo'shing:
+
+# ... mavjud kodlaringiz o'zgarmaydi ...
+
+# ==============================================================================
+# -*-*- ASOSIY FUNKSIYA -*-*-
+# ==============================================================================
+
 async def main():
     print("Bot ishga tushdi...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
+    # 🔥 FAQAT SHU QATORNI QO'SHING
+    import subprocess, threading
+    
+    def start_server():
+        subprocess.run(["python", "server.py"])
+    
+    server_thread = threading.Thread(target=start_server, daemon=True)
+    server_thread.start()
+    
     asyncio.run(main())
