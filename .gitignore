@@ -1,34 +1,35 @@
-# Environment fayllar
-.env
-.env.local
-.env.production
 
-# Virtual muhit
-venv/
-env/
-.venv/
+## 5. .gitignore Faylini Yaratish
 
-# Python fayllar
+```gitignore
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
+env/
+venv/
+.venv/
 
-# Ma'lumotlar bazasi
+# Environment variables
+.env
+.env.local
+
+# Database
 *.db
 *.sqlite3
 
-# Log fayllar
+# Logs
 *.log
 logs/
 
-# OS fayllar
-.DS_Store
-Thumbs.db
-
-# IDE fayllar
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+
+# OS
+.DS_Store
+Thumbs.db
