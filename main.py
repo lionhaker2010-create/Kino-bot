@@ -1,6 +1,7 @@
 import os
 import time
 import asyncio
+import threading
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
@@ -8,27 +9,29 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from dotenv import load_dotenv
 
-# 🔥 YANGI: Keep alive import
-from keep_alive import keep_alive, start_pinging
-import threading
+# 🔥 AVVAL: Database va Admin import qilish
+from database import Database
+from admin import AdminManager, AdvertisementState
+from admin import DeleteContentState
 
-# 🔥 YANGI: Botni uyg'otishni boshlash
+# 🔥 KEYIN: Keep alive import
+from keep_alive import keep_alive, start_pinging
+
+# 🔥 Botni uyg'otishni boshlash
 keep_alive()
 print("✅ Keep-alive server started!")
 
-# 🔥 YANGI: Ping ni background da ishlatish
+# 🔥 Ping ni background da ishlatish
 ping_thread = threading.Thread(target=start_pinging, daemon=True)
 ping_thread.start()
 print("✅ Auto-ping started!")
 
 load_dotenv()
 
-# ... qolgan kodlar o'zgarmaydi
-
 # ==============================================================================
 # -*-*- GLOBAL O'ZGARUVCHILAR -*-*-
 # ==============================================================================
-last_movie_processing_time = 0  # <- BU QATORNI QO'SHING
+last_movie_processing_time = 0
 last_payment_processing_time = 0
 
 # ==============================================================================
@@ -44,6 +47,8 @@ dp = Dispatcher()
 # ==============================================================================
 db = Database()
 admin_manager = AdminManager(db)
+
+# ... QOLGAN KODLAR O'ZGARMASIN ...
 
 # ==============================================================================
 # -*-*- RO'YXATDAN O'TISH HOLATLARI -*-*-
