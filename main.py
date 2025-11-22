@@ -8,11 +8,22 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from dotenv import load_dotenv
 
-from database import Database
-from admin import AdminManager, AdvertisementState
-from admin import DeleteContentState
+# 🔥 YANGI: Keep alive import
+from keep_alive import keep_alive, start_pinging
+import threading
+
+# 🔥 YANGI: Botni uyg'otishni boshlash
+keep_alive()
+print("✅ Keep-alive server started!")
+
+# 🔥 YANGI: Ping ni background da ishlatish
+ping_thread = threading.Thread(target=start_pinging, daemon=True)
+ping_thread.start()
+print("✅ Auto-ping started!")
 
 load_dotenv()
+
+# ... qolgan kodlar o'zgarmaydi
 
 # ==============================================================================
 # -*-*- GLOBAL O'ZGARUVCHILAR -*-*-
