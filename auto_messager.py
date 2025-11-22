@@ -4,16 +4,29 @@ import logging
 from datetime import datetime, timedelta
 from aiogram import Bot
 from database import Database
-import pytz
 
-# Toshkent vaqti
-TASHKENT_TZ = pytz.timezone('Asia/Tashkent')
+# Pytz o'rniga oddiy datetime
+try:
+    import pytz
+    TASHKENT_TZ = pytz.timezone('Asia/Tashkent')
+    USE_PYTZ = True
+except ImportError:
+    print("⚠️ pytz moduli topilmadi, oddiy vaqt ishlatiladi")
+    USE_PYTZ = False
 
 class AutoMessager:
     def __init__(self, bot: Bot):
         self.bot = bot
         self.db = Database()
         self.logger = logging.getLogger(__name__)
+    
+    def _get_tashkent_time(self):
+        """Toshkent vaqtini olish"""
+        if USE_PYTZ:
+            return datetime.now(TASHKENT_TZ)
+        else:
+            # UTC+5 (Toshkent vaqti)
+            return datetime.utcnow() + timedelta(hours=5)
     
     async def send_message_to_all_users(self, message_text: str):
         """Barcha foydalanuvchilarga xabar yuborish"""
@@ -41,7 +54,7 @@ class AutoMessager:
     
     async def get_daily_message(self):
         """Kunlik xabarlarni olish"""
-        now = datetime.now(TASHKENT_TZ)
+        now = self._get_tashkent_time()
         current_time = now.strftime("%H:%M")
         day_of_week = now.strftime("%A")
         
@@ -184,7 +197,7 @@ Juma kuni oilangiz bilan vaqt o'tkazing va bizning kinoteksimizdan foydalanib, d
             message_data = await self.get_daily_message()
             if message_data:
                 message_text = message_data["message"]
-                current_time = datetime.now(TASHKENT_TZ).strftime('%H:%M')
+                current_time = self._get_tashkent_time().strftime('%H:%M')
                 self.logger.info(f"🕒 Vaqt: {current_time} - Xabar yuborilmoqda...")
                 
                 success, failed = await self.send_message_to_all_users(message_text)
