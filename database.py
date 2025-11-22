@@ -886,4 +886,53 @@ class Database:
         if self.check_premium_status(user_id):
             return True
         
-        return False       
+        return False     
+
+    # -*-*- BARCHA FOYDALANUVCHILAR TO'LIQ MA'LUMOTLARI -*-*-
+    def get_all_users_with_details(self):
+        """Barcha foydalanuvchilarni to'liq ma'lumotlari bilan olish"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT 
+                    u.user_id, 
+                    u.username, 
+                    u.first_name, 
+                    u.phone_number, 
+                    u.language,
+                    u.registered_at,
+                    CASE WHEN ps.user_id IS NOT NULL THEN 1 ELSE 0 END as is_premium
+                FROM users u
+                LEFT JOIN premium_subscriptions ps ON u.user_id = ps.user_id 
+                    AND ps.payment_status = 'active'
+                ORDER BY u.registered_at DESC
+            ''')
+            return cursor.fetchall()
+
+    def get_users_statistics(self):
+        """Foydalanuvchilar statistikasi"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Jami foydalanuvchilar
+            cursor.execute('SELECT COUNT(*) FROM users')
+            total_users = cursor.fetchone()[0]
+            
+            # Premium foydalanuvchilar
+            cursor.execute('SELECT COUNT(*) FROM premium_subscriptions WHERE payment_status = "active"')
+            premium_users = cursor.fetchone()[0]
+            
+            # Bugungi foydalanuvchilar
+            cursor.execute('SELECT COUNT(*) FROM users WHERE DATE(registered_at) = DATE("now")')
+            today_users = cursor.fetchone()[0]
+            
+            # Haftalik o'sish
+            cursor.execute('SELECT COUNT(*) FROM users WHERE registered_at >= DATE("now", "-7 days")')
+            weekly_growth = cursor.fetchone()[0]
+            
+            return {
+                'total_users': total_users,
+                'premium_users': premium_users,
+                'today_users': today_users,
+                'weekly_growth': weekly_growth
+            }        

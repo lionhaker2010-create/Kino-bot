@@ -123,3 +123,67 @@ class AdminManager:
         except Exception as e:
             print(f"❌ Admin ga xabar yuborishda xatolik: {e}")
             return False    
+   
+    # -*-*- FOYDALANUVCHILAR MA'LUMOTLARI -*-*-
+    import asyncio
+    from datetime import datetime
+
+    async def get_users_report(self, bot: Bot, admin_id: int):
+        """Barcha foydalanuvchilar to'liq ma'lumotlarini yuborish"""
+        try:
+            users = self.db.get_all_users_with_details()
+            
+            if not users:
+                await bot.send_message(admin_id, "📊 Hozircha hech qanday foydalanuvchi ro'yxatdan o'tmagan.")
+                return
+            
+            # Excel fayl yoki text formatda yuborish
+            report_text = "📊 <b>BARCHA FOYDALANUVCHILAR RO'YXATI</b>\n\n"
+            
+            for i, user in enumerate(users, 1):
+                user_id, username, first_name, phone_number, language, registered_at, is_premium = user
+                
+                premium_status = "✅ Premium" if is_premium else "❌ Oddiy"
+                username_display = f"@{username}" if username else "Yo'q"
+                phone_display = phone_number if phone_number else "Yo'q"
+                
+                report_text += (
+                    f"<b>{i}.</b> 👤 <b>{first_name}</b>\n"
+                    f"   🆔 ID: <code>{user_id}</code>\n"
+                    f"   📱 Tel: {phone_display}\n"
+                    f"   👤 Username: {username_display}\n"
+                    f"   🌐 Til: {language}\n"
+                    f"   💎 Status: {premium_status}\n"
+                    f"   📅 Ro'yxatdan: {registered_at}\n"
+                    f"   ───────────────────\n"
+                )
+                
+                # Har 10 ta foydalanuvchidan keyin xabar uzun bo'lmasligi uchun
+                if i % 10 == 0:
+                    await bot.send_message(admin_id, report_text, parse_mode='HTML')
+                    report_text = ""
+                    await asyncio.sleep(1)
+            
+            # Qolgan foydalanuvchilarni yuborish
+            if report_text:
+                await bot.send_message(admin_id, report_text, parse_mode='HTML')
+                
+            # Umumiy statistika
+            total_users = len(users)
+            premium_users = len([u for u in users if u[6]])  # is_premium
+            today_users = self.db.get_today_users()
+            
+            stats_text = (
+                f"📈 <b>UMUMIY STATISTIKA</b>\n\n"
+                f"👥 Jami foydalanuvchilar: <b>{total_users}</b> ta\n"
+                f"👑 Premium a'zolar: <b>{premium_users}</b> ta\n"
+                f"📊 Bugungi yangi: <b>{today_users}</b> ta\n"
+                f"📉 Oddiy foydalanuvchilar: <b>{total_users - premium_users}</b> ta\n\n"
+                f"📅 Hisobot vaqti: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            )
+            
+            await bot.send_message(admin_id, stats_text, parse_mode='HTML')
+            
+        except Exception as e:
+            error_msg = f"❌ Hisobot tayyorlashda xatolik: {e}"
+            await bot.send_message(admin_id, error_msg)

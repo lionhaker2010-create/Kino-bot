@@ -2,6 +2,7 @@ import os
 import time
 import asyncio
 import threading
+from auto_messager import AutoMessager 
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
@@ -256,12 +257,13 @@ def admin_keyboard():
 def admin_advanced_keyboard():
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="📊 Foydalanuvchilar soni"), KeyboardButton(text="💰 Pullik Hizmatlar Statistika")],
-            [KeyboardButton(text="💰 To'lovlarni ko'rish"), KeyboardButton(text="📢 Reklama yuborish")],
-            [KeyboardButton(text="👑 Premium Boshqaruv"), KeyboardButton(text="🎬 Kontent Qo'shish")],
-            [KeyboardButton(text="📁 Kontentlar Boshqaruvi"), KeyboardButton(text="📋 Kinolar ro'yxati")],
-            [KeyboardButton(text="🚫 Bloklash"), KeyboardButton(text="✅ Blokdan ochish")],
-            [KeyboardButton(text="🔄 Holatni tozalash"), KeyboardButton(text="🔙 Asosiy Menyu")],
+            [KeyboardButton(text="📊 Foydalanuvchilar soni"), KeyboardButton(text="👥 Foydalanuvchilar ro'yxati")],
+            [KeyboardButton(text="📈 Foydalanuvchilar statistikasi"), KeyboardButton(text="💰 To'lovlarni ko'rish")],
+            [KeyboardButton(text="📢 Reklama yuborish"), KeyboardButton(text="👑 Premium Boshqaruv")],
+            [KeyboardButton(text="🎬 Kontent Qo'shish"), KeyboardButton(text="📁 Kontentlar Boshqaruvi")],
+            [KeyboardButton(text="📋 Kinolar ro'yxati"), KeyboardButton(text="🚫 Bloklash")],
+            [KeyboardButton(text="✅ Blokdan ochish"), KeyboardButton(text="🔄 Holatni tozalash")],
+            [KeyboardButton(text="🔙 Asosiy Menyu")],
         ],
         resize_keyboard=True
     )
@@ -1324,22 +1326,22 @@ async def search_again(message: types.Message, state: FSMContext):
     await search_handler(message, state)    
         
 # ==============================================================================
-# -*-*- KONTENT BANNERI YUBORISH (EMERGENCY FIX) -*-*-
+# -*-*- KONTENT BANNERI YUBORISH (TUZATILGAN) -*-*-
 # ==============================================================================
+
 async def send_content_banner(message: types.Message, movie, user_id):
-    """Kontent bannerini yuborish"""
+    """Kontent bannerini yuborish - FAQAT PULLIK KINOLAR UCHUN TO'LOV TUGMASI"""
     try:
         # 11 TA USTUNNI OLISH
         movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
         
-        print(f"🚨 EMERGENCY DEBUG: Kino: {title}, Narx: {price}, User: {user_id}")
+        print(f"🚨 DEBUG: Kino: {title}, Narx: {price}, User: {user_id}")
         
         # Foydalanuvchi holatini TEKSHRISH
         user_has_purchased = db.check_user_purchase(user_id, movie_id)
         is_premium_user = db.check_premium_status(user_id)
-        can_download = db.can_user_download(user_id, movie_id)  # <- YANGI
         
-        print(f"🚨 EMERGENCY DEBUG: Sotib olgan: {user_has_purchased}, Premium: {is_premium_user}, Yuklab olish: {can_download}")
+        print(f"🚨 DEBUG: Sotib olgan: {user_has_purchased}, Premium: {is_premium_user}")
         
         # Banner matni
         caption = (
@@ -1353,26 +1355,38 @@ async def send_content_banner(message: types.Message, movie, user_id):
         
         # HOLATNI ANIQLASH
         can_watch = False
-        download_button = None
+        keyboard_buttons = []
         
         if price == 0:
+            # 🆓 BEPUL KINO - TO'LOV TUGMASI YO'Q!
             caption += "🆓 **Bepul kontent** - Darrov ko'rashingiz mumkin!"
             can_watch = True
-            # Bepul kinolar uchun YUKLAB OLISH TUGMASI YO'Q
+            # Bepul kinolar uchun faqat "🔙 Orqaga" tugmasi
+            keyboard_buttons.append([KeyboardButton(text="🔙 Orqaga")])
+            
         elif user_has_purchased:
+            # ✅ SOTIB OLINGAN
             caption += "✅ **Sotib olingan** - Darrov ko'rashingiz mumkin!"
             can_watch = True
-            download_button = KeyboardButton(text="📥 Yuklab olish")  # Sotib olingan uchun yuklab olish
+            # Sotib olingan uchun faqat "🔙 Orqaga" 
+            keyboard_buttons.append([KeyboardButton(text="🔙 Orqaga")])
+            
         elif is_premium_user:
+            # 👑 PREMIUM
             caption += "👑 **Premium** - Darrov ko'rashingiz mumkin!"
             can_watch = True
-            download_button = KeyboardButton(text="📥 Yuklab olish")  # Premium uchun yuklab olish
+            # Premium uchun faqat "🔙 Orqaga"
+            keyboard_buttons.append([KeyboardButton(text="🔙 Orqaga")])
+            
         else:
+            # 🔒 PULLIK KINO - FAQAT SHUNDA TO'LOV TUGMASI
             caption += "🔒 **Pullik kontent** - Yuklab olish uchun to'lov qiling"
             can_watch = False
-            download_button = KeyboardButton(text="💳 Yuklab olish uchun to'lash")
+            # FAQAT PULLIK KINOLAR UCHUN TO'LOV TUGMASI
+            keyboard_buttons.append([KeyboardButton(text="💳 Yuklab olish uchun to'lash")])
+            keyboard_buttons.append([KeyboardButton(text="🔙 Orqaga")])
         
-        print(f"🚨 EMERGENCY DEBUG: Ko'rish ruxsati: {can_watch}, Yuklab olish: {can_download}")
+        print(f"🚨 DEBUG: Ko'rish ruxsati: {can_watch}, Narx: {price}")
         
         # 1. ALOHIDA BANNER RASMI YUBORISH
         if banner_file_id:
@@ -1383,16 +1397,7 @@ async def send_content_banner(message: types.Message, movie, user_id):
         
         # 2. VIDEO YUBORISH - FAQAT CAN_WATCH = TRUE BO'LSA
         if can_watch:
-            print(f"🚨 EMERGENCY DEBUG: TO'LIQ VIDEO YUBORILMOQDA")
-            
-            # Klaviatura yaratish
-            keyboard_buttons = []
-            
-            # FAQAT PULLIK KINOLAR UCHUN YUKLAB OLISH TUGMASI
-            if price > 0 and download_button:
-                keyboard_buttons.append([download_button])
-            
-            keyboard_buttons.append([KeyboardButton(text="🔙 Orqaga")])
+            print(f"🚨 DEBUG: TO'LIQ VIDEO YUBORILMOQDA")
             
             # Video yuborish
             await message.answer_video(
@@ -1404,24 +1409,21 @@ async def send_content_banner(message: types.Message, movie, user_id):
                 )
             )
         else:
-            print(f"🚨 EMERGENCY DEBUG: FAQAT PREVIEW YUBORILMOQDA")
+            print(f"🚨 DEBUG: FAQAT PREVIEW YUBORILMOQDA")
             # Pullik kontent - FAQAT XABAR, VIDEO EMAS!
             await message.answer(
                 "🔒 **PULLIK KONTENT**\n\n"
                 "Bu kino pullik! To'liq ko'rish uchun quyidagi tugma orqali to'lov qiling:",
                 reply_markup=ReplyKeyboardMarkup(
-                    keyboard=[
-                        [KeyboardButton(text="💳 Yuklab olish uchun to'lash")],
-                        [KeyboardButton(text="🔙 Orqaga")],
-                    ],
+                    keyboard=keyboard_buttons,
                     resize_keyboard=True
                 )
             )
         
-        print(f"🚨 EMERGENCY DEBUG: Jarayon tugadi")
+        print(f"🚨 DEBUG: Jarayon tugadi")
         
     except Exception as e:
-        print(f"🚨 EMERGENCY DEBUG: Xatolik: {e}")
+        print(f"🚨 DEBUG: Xatolik: {e}")
         await message.answer(f"❌ Xatolik: {e}")
         
 # -*-*- KINO BANNERI QABUL QILISH -*-*-
@@ -3160,10 +3162,6 @@ async def back_to_main(message: types.Message):
 # -*-*- PULLIK HIZMATLAR HANDLERLARI -*-*-
 # ==============================================================================
 
-# ==============================================================================
-# -*-*- PULLIK HIZMATLAR HANDLERLARI -*-*-
-# ==============================================================================
-
 @dp.message(F.text == "💎 Premium Obuna")
 async def premium_subscription(message: types.Message):
     await message.answer(
@@ -3694,6 +3692,60 @@ async def confirm_payment(message: types.Message):
         
     except Exception as e:
         await message.answer(f"❌ Xatolik: {e}")
+        
+# ==============================================================================
+# -*-*- FOYDALANUVCHILAR RO'YXATI HANDLERI -*-*-
+# ==============================================================================
+
+@dp.message(F.text == "👥 Foydalanuvchilar ro'yxati")
+async def users_list_handler(message: types.Message):
+    """Foydalanuvchilar to'liq ro'yxatini yuborish"""
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        # Loading xabari
+        loading_msg = await message.answer("📊 <b>Foydalanuvchilar ro'yxati tayyorlanmoqda...</b>", parse_mode='HTML')
+        
+        try:
+            # Hisobotni yuborish
+            await admin_manager.get_users_report(bot, message.from_user.id)
+            await loading_msg.delete()
+            
+        except Exception as e:
+            await loading_msg.edit_text(f"❌ Xatolik: {e}")
+    else:
+        await message.answer("Sizga ruxsat yo'q!")
+
+# ==============================================================================
+# -*-*- FOYDALANUVCHILAR STATISTIKASI -*-*-
+# ==============================================================================
+
+@dp.message(F.text == "📈 Foydalanuvchilar statistikasi")
+async def users_statistics_handler(message: types.Message):
+    """Foydalanuvchilar statistikasini ko'rsatish"""
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        try:
+            stats = db.get_users_statistics()
+            
+            stats_text = (
+                "📊 <b>FOYDALANUVCHILAR STATISTIKASI</b>\n\n"
+                f"👥 <b>Jami foydalanuvchilar:</b> {stats['total_users']} ta\n"
+                f"👑 <b>Premium a'zolar:</b> {stats['premium_users']} ta\n"
+                f"📅 <b>Bugungi yangi:</b> {stats['today_users']} ta\n"
+                f"📈 <b>Haftalik o'sish:</b> {stats['weekly_growth']} ta\n\n"
+                
+                f"📋 <b>Foizlar:</b>\n"
+                f"• Premium foydalanuvchilar: { (stats['premium_users']/stats['total_users']*100) if stats['total_users'] > 0 else 0 :.1f}%\n"
+                f"• Oddiy foydalanuvchilar: { ((stats['total_users']-stats['premium_users'])/stats['total_users']*100) if stats['total_users'] > 0 else 0 :.1f}%\n\n"
+                
+                f"🕒 <b>Hisobot vaqti:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            )
+            
+            await message.answer(stats_text, parse_mode='HTML')
+            
+        except Exception as e:
+            await message.answer(f"❌ Statistikani olishda xatolik: {e}")
+    else:
+        await message.answer("Sizga ruxsat yo'q!")        
+        
 
 # -*-*- FOYDALANUVCHI OBUNASINI TEKSHIRISH -*-*-
 @dp.message(F.text == "🔍 Obunani tekshirish")
@@ -3846,7 +3898,127 @@ async def process_payment_receipt_new(message: types.Message, state: FSMContext)
         reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
     )
     
-    await state.clear()        
+    await state.clear()   
+
+# ==============================================================================
+# -*-*- YUKLAB OLISH TO'LOVI HANDLERI -*-*-
+# ==============================================================================
+
+@dp.message(F.text == "💳 Yuklab olish uchun to'lash")
+async def start_download_payment_from_button(message: types.Message, state: FSMContext):
+    """Yuklab olish uchun to'lovni boshlash"""
+    # State dan kino ma'lumotlarini olish
+    data = await state.get_data()
+    movie_id = data.get('movie_id')
+    movie_title = data.get('movie_title', "Noma'lum kino")
+    movie_price = data.get('movie_price', 30000)
+    
+    if not movie_id:
+        await message.answer(
+            "❌ **Kino tanlanmagan!**\n\n"
+            "Iltimos, avval yuklab olmoqchi bo'lgan kinoni tanlang:\n"
+            "1. 📁 Bo'limlar orqali kino toping\n"
+            "2. Kino nomini bosing\n" 
+            "3. Keyin '💳 Yuklab olish uchun to'lash' tugmasini bosing",
+            reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
+        )
+        return
+    
+    # To'lov ma'lumotlarini state ga saqlash
+    await state.update_data(
+        service_type="download",
+        service_name="Kino Yuklab Olish",
+        amount=30000,
+        description=f"'{movie_title}' kinosini yuklab olish"
+    )
+    
+    await message.answer(
+        f"💳 **Kino Yuklab Olish To'lovi**\n\n"
+        f"🎬 **Kino:** {movie_title}\n"
+        f"💵 **Summa:** 30,000 so'm\n\n"
+        f"📋 **Xizmat tavsifi:**\n"
+        f"• Kino telefon yoki kompyuteringizga yuklanadi\n"
+        f"• HD 1080p sifat\n"
+        f"• Oflayn tomosha qilish imkoniyati\n\n"
+        f"🏦 **To'lov usullari:**\n"
+        f"• 💳 Karta: 9860 3501 4890 3205 (HUMO)\n"
+        f"• 📱 Click: +998888882505\n\n"
+        f"📸 **To'lov qilgach, chekni yuboring:**",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="📸 Chek yuborish")],
+                [KeyboardButton(text="🔙 Orqaga")]
+            ],
+            resize_keyboard=True
+        )
+    )
+    await state.set_state(PaymentState.waiting_payment_receipt)
+
+# ==============================================================================
+# -*-*- KINO TANLANGANDA STATE NI TO'G'RI SAQLASH -*-*-
+# ==============================================================================
+
+@dp.message(F.text.startswith("🎬"))
+async def show_movie_details_fixed(message: types.Message, state: FSMContext):
+    """Kino tanlanganda banner yuborish va state ni saqlash"""
+    full_text = message.text[2:].strip()  # "🎬 " ni olib tashlaymiz
+    user_id = message.from_user.id
+    
+    print(f"DEBUG: Kino tanlandi: '{full_text}'")
+    
+    # Faqat kino nomini olish (aktyor nomini olib tashlash)
+    movie_title = full_text
+    if " - " in full_text:
+        movie_title = full_text.split(" - ")[0].strip()
+    
+    print(f"DEBUG: Qidirilayotgan kino nomi: '{movie_title}'")
+    
+    # Barcha kinolardan qidirish
+    all_movies = db.get_all_movies_sorted()
+    selected_movie = None
+    
+    for movie in all_movies:
+        movie_id, db_title, description, category, file_id, price, is_premium, db_actor, banner_file_id, created_at, added_by = movie
+        
+        # Faqat kino nomini solishtiramiz
+        if movie_title.lower() == db_title.lower():
+            selected_movie = movie
+            print(f"DEBUG: Kino topildi: {db_title}, ID: {movie_id}, Narx: {price}")
+            break
+    
+    if selected_movie:
+        # KINO MA'LUMOTLARINI STATE GA SAQLASH - BU ENG MUHIM QISM!
+        await state.update_data(
+            movie_id=selected_movie[0],
+            movie_title=selected_movie[1],
+            movie_price=selected_movie[5]
+        )
+        
+        print(f"DEBUG: State saqlandi - Movie ID: {selected_movie[0]}, Title: {selected_movie[1]}")
+        
+        # BANNER YUBORISH
+        await send_content_banner(message, selected_movie, user_id)
+    else:
+        print(f"DEBUG: Kino topilmadi")
+        await message.answer("❌ Kino topilmadi. Iltimos, qayta urinib ko'ring.")
+
+# ==============================================================================
+# -*-*- STATE TEKSHIRISH HANDLERI -*-*-
+# ==============================================================================
+
+@dp.message(F.text == "🔍 State ni tekshirish")
+async def check_state(message: types.Message, state: FSMContext):
+    """State dagi ma'lumotlarni tekshirish (faqat test uchun)"""
+    data = await state.get_data()
+    
+    if data:
+        state_info = "📋 **State Ma'lumotlari:**\n\n"
+        for key, value in data.items():
+            state_info += f"• {key}: {value}\n"
+    else:
+        state_info = "❌ **State bo'sh**"
+    
+    await message.answer(state_info)    
     
 # ==============================================================================
 # -*-*- ADMIN BILAN BOG'LANISH HANDLERLARI -*-*-
@@ -4158,12 +4330,20 @@ async def handle_other_messages(message: types.Message):
         )
        
 # ==============================================================================
-# -*-*- ASOSIY FUNKSIYA -*-*-
+# -*-*- AVTOMATIK XABAR YUBORISHNI BOSHLASH -*-*-
 # ==============================================================================
 
-# main.py faylining ENG OXIRIGA qo'shing:
+async def start_auto_messager():
+    """Avtomatik xabar yuborishni ishga tushirish"""
+    try:
+        messager = AutoMessager(bot)
+        await messager.start_scheduler()
+    except Exception as e:
+        print(f"❌ Avtomatik xabar yuborishda xatolik: {e}")
 
-# ... mavjud kodlaringiz o'zgarmaydi ...
+def run_auto_messager():
+    """Avtomatik xabar yuborishni background da ishlatish"""
+    asyncio.run(start_auto_messager())
 
 # ==============================================================================
 # -*-*- ASOSIY FUNKSIYA -*-*-
@@ -4171,6 +4351,16 @@ async def handle_other_messages(message: types.Message):
 
 async def main():
     print("Bot ishga tushdi...")
+    
+    # 🔥 AVTOMATIK XABAR YUBORISHNI BOSHLASH
+    try:
+        # Yangi thread da avtomatik xabarlarni ishga tushirish
+        auto_messager_thread = threading.Thread(target=run_auto_messager, daemon=True)
+        auto_messager_thread.start()
+        print("✅ Avtomatik xabar yuborish ishga tushdi")
+    except Exception as e:
+        print(f"❌ Avtomatik xabar yuborishni ishga tushirishda xatolik: {e}")
+    
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
