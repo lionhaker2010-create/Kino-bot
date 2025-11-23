@@ -4736,25 +4736,27 @@ def run_auto_messager():
 async def main():
     print("Bot ishga tushdi...")
     
-    # 🔥 AVTOMATIK XABAR YUBORISHNI BOSHLASH
+    # 🔥 FAQAT BITTA KEEP ALIVE SERVER
     try:
-        # Yangi thread da avtomatik xabarlarni ishga tushirish
-        auto_messager_thread = threading.Thread(target=run_auto_messager, daemon=True)
-        auto_messager_thread.start()
-        print("✅ Avtomatik xabar yuborish ishga tushdi")
+        from keep_alive import keep_alive, start_background_ping
+        
+        keep_alive()  # Server ni ishga tushirish
+        start_background_ping()  # Ping ni ishga tushirish
+        print("✅ Keep-alive server started!")
+        
     except Exception as e:
-        print(f"❌ Avtomatik xabar yuborishni ishga tushirishda xatolik: {e}")
+        print(f"❌ Keep-alive server error: {e}")
+    
+    # 🔥 AVTOMATIK XABAR YUBORISH
+    try:
+        from auto_messager import AutoMessager
+        messager = AutoMessager(bot)
+        await messager.start_scheduler()
+        print("✅ AutoMessager started!")
+    except Exception as e:
+        print(f"❌ AutoMessager error: {e}")
     
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    # 🔥 FAQAT SHU QATORNI QO'SHING
-    import subprocess, threading
-    
-    def start_server():
-        subprocess.run(["python", "server.py"])
-    
-    server_thread = threading.Thread(target=start_server, daemon=True)
-    server_thread.start()
-    
     asyncio.run(main())
