@@ -4736,7 +4736,7 @@ def run_auto_messager():
 async def main():
     print("Bot ishga tushdi...")
     
-    # 🔥 FAQAT BITTA KEEP ALIVE SERVER
+    # 🔥 KEEP ALIVE SERVER NI ISHGA TUSHIRISH
     try:
         from keep_alive import keep_alive, start_background_ping
         

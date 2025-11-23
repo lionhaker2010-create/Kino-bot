@@ -1,4 +1,3 @@
-# keep_alive.py
 from flask import Flask
 from threading import Thread
 import time
@@ -27,7 +26,6 @@ def keep_alive():
     server = Thread(target=run)
     server.start()
 
-# 🔥 YANGILANGAN PING FUNKSIYASI
 def start_pinging():
     print("🔄 Auto-ping service started!")
     
@@ -35,7 +33,6 @@ def start_pinging():
     
     while True:
         try:
-            # Har 10 daqiqada ping
             requests.get(f"{render_url}/", timeout=5)
             requests.get(f"{render_url}/health", timeout=5)
             print(f"🔄 Ping sent - {time.strftime('%H:%M:%S')}")
@@ -44,7 +41,6 @@ def start_pinging():
         
         time.sleep(600)  # 10 daqiqa
 
-# Background da ishlash uchun
 def start_background_ping():
     ping_thread = Thread(target=start_pinging, daemon=True)
     ping_thread.start()
