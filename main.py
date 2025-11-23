@@ -830,7 +830,44 @@ async def process_main_category(message: types.Message, state: FSMContext):
         await state.clear()
         return
         
+    # TO'G'RI: Kategoriyani faqat asosiy nomini saqlaymiz, chiziqsiz
     await state.update_data(main_category=message.text)
+    
+    # AGAR HOLLYWOOD BO'LSA, ACTOR TANLASH
+    if message.text == "🎭 Hollywood Kinolari":
+        await message.answer(
+            f"📁 **{message.text}** bo'limi uchun aktyorni tanlang:",
+            reply_markup=get_category_keyboard("sub", message.text)
+        )
+        await state.set_state(ContentManagementState.waiting_sub_category)
+    else:
+        # BOSHQA KATEGORIYALARDA TO'GRIDAN-TO'G'RI NARX SO'RASH
+        await message.answer(
+            "💵 Kino narxini kiriting (so'mda):\n0 - Bepul\n30000 - Yuklab olish uchun",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        await state.set_state(ContentManagementState.waiting_movie_price)
+        # Actor nomini None qilib saqlaymiz
+        await state.update_data(sub_category="", actor="")
+
+# -*-*- ICHKI KATEGORIYA TANLASH -*-*-
+@dp.message(ContentManagementState.waiting_sub_category)
+async def process_sub_category(message: types.Message, state: FSMContext):
+    print(f"DEBUG: Ichki kategoriya tanlandi: '{message.text}'")
+    
+    if message.text == "🔙 Orqaga":
+        await message.answer("Asosiy kategoriyani tanlang:", reply_markup=get_category_keyboard("main"))
+        await state.set_state(ContentManagementState.waiting_main_category)
+        return
+        
+    # ICHKI KATEGORIYA = AKTYOR NOMI
+    await state.update_data(sub_category=message.text, actor=message.text)
+    
+    await message.answer(
+        "💵 Kino narxini kiriting (so'mda):\n0 - Bepul\n30000 - Yuklab olish uchun",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    await state.set_state(ContentManagementState.waiting_movie_price)
     
     # AGAR HOLLYWOOD BO'LSA, ACTOR TANLASH
     if message.text == "🎭 Hollywood Kinolari":
@@ -1549,19 +1586,20 @@ async def process_movie_file(message: types.Message, state: FSMContext):
             await state.clear()
             return
     
-    full_category = f"{data['main_category']} - {data['sub_category']}"
+    # TO'G'RI: Kategoriyani faqat asosiy nomini saqlaymiz
+    full_category = data['main_category']  # <- O'ZGARDI: " - {data['sub_category']}" ni olib tashladik
     
     # Kino qo'shish (banner bilan)
     movie_id = db.add_movie(
         title=data['title'],
         description=data['description'],
-        category=full_category,
+        category=full_category,  # <- TO'G'RI KATEGORIYA
         file_id=message.video.file_id,
         price=data['price'],
         is_premium=(data['price'] > 0),
         added_by=message.from_user.id,
         actor_name=data['actor'],
-        banner_file_id=data['banner_file_id']  # <- BANNER QO'SHILDI
+        banner_file_id=data['banner_file_id']
     )
     
     await state.clear()
