@@ -221,6 +221,7 @@ def main_menu_keyboard(user_id=None, username=None):
 
 # -*-*- BO'LIMLAR KLAVIATURASI -*-*-
 def sections_keyboard():
+    """Foydalanuvchilar uchun asosiy bo'limlar menyusi"""
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="🎭 Hollywood Kinolari"), KeyboardButton(text="🎬 Hind Filmlari")],
@@ -235,6 +236,224 @@ def sections_keyboard():
         ],
         resize_keyboard=True
     )
+    
+# main.py fayliga qo'shing:
+
+# HOLLYWOOD AKTYORLARI
+def hollywood_actors_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🎬 Mel Gibson"), KeyboardButton(text="💪 Arnold Schwarzenegger")],
+            [KeyboardButton(text="🥊 Sylvester Stallone"), KeyboardButton(text="🚗 Jason Statham")],
+            [KeyboardButton(text="🐲 Jeki Chan"), KeyboardButton(text="🥋 Skod Adkins")],
+            [KeyboardButton(text="🎭 Denzil Washington"), KeyboardButton(text="💥 Jan Clod Van Dam")],
+            [KeyboardButton(text="👊 Brus lee"), KeyboardButton(text="😂 Jim Cerry")],
+            [KeyboardButton(text="🏴‍☠️ Jonni Depp"), KeyboardButton(text="🥋 Jet Lee")],
+            [KeyboardButton(text="👊 Mark Dacascos"), KeyboardButton(text="🎬 Bred Pitt")],
+            [KeyboardButton(text="🎭 Leonardo Dicaprio"), KeyboardButton(text="📽️ Barcha Hollywood")],
+            [KeyboardButton(text="🔙 Orqaga")],
+        ],
+        resize_keyboard=True
+    )
+
+# HIND AKTYORLARI
+def hind_actors_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🤴 Shakruhkhan"), KeyboardButton(text="🎬 Amirkhan")],
+            [KeyboardButton(text="💪 Akshay Kumar"), KeyboardButton(text="👑 Salmonkhan")],
+            [KeyboardButton(text="🌟 SayfAlihon"), KeyboardButton(text="🎭 Amitahbachchan")],
+            [KeyboardButton(text="🔥 MethunChakraborty"), KeyboardButton(text="🎥 Dharmendra")],
+            [KeyboardButton(text="🎞️ Raj Kapur"), KeyboardButton(text="📀 Barcha Hind")],
+            [KeyboardButton(text="🔙 Orqaga")],
+        ],
+        resize_keyboard=True
+    )
+
+# RUS KINOLARI
+def russian_movies_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="💼 Ishdagi Ishq"), KeyboardButton(text="🎭 Shurikning Sarguzashtlari")],
+            [KeyboardButton(text="👑 Ivan Vasilivich"), KeyboardButton(text="🔥 Gugurtga Ketib")],
+            [KeyboardButton(text="🕵️ If Qalqasing Mahbuzi"), KeyboardButton(text="👶 O'nta Neger Bolasi")],
+            [KeyboardButton(text="⚔️ Qo'lga Tushmas Qasoskorlar"), KeyboardButton(text="📀 Barcha Rus Kinolari")],
+            [KeyboardButton(text="🔙 Orqaga")],
+        ],
+        resize_keyboard=True
+    )
+
+# BOLALAR KINOLARI
+def kids_movies_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🏠 Bola Uyda Yolg'iz 1"), KeyboardButton(text="🏠 Bola Uyda Yolg'iz 2")],
+            [KeyboardButton(text="🏠 Bola Uyda Yolg'iz 3"), KeyboardButton(text="✈️ Uchubchi Devid")],
+            [KeyboardButton(text="⚡ Garry Poter 1"), KeyboardButton(text="⚡ Garry Poter 2")],
+            [KeyboardButton(text="⚡ Garry Poter 3"), KeyboardButton(text="⚡ Garry Poter 4")],
+            [KeyboardButton(text="🎬 Barcha Bolalar Kinolari"), KeyboardButton(text="🔙 Orqaga")],
+        ],
+        resize_keyboard=True
+    ) 
+
+# ==============================================================================
+# -*-*- AKTYORLAR BO'YICHA KINOLARNI KO'RSATISH -*-*-
+# ==============================================================================
+
+@dp.message(F.text.in_([
+    "🎬 Mel Gibson", "💪 Arnold Schwarzenegger", "🥊 Sylvester Stallone",
+    "🚗 Jason Statham", "🐲 Jeki Chan", "🥋 Skod Adkins",
+    "🎭 Denzil Washington", "💥 Jan Clod Van Dam", "👊 Brus lee",
+    "😂 Jim Cerry", "🏴‍☠️ Jonni Depp", "🥋 Jet Lee", 
+    "👊 Mark Dacascos", "🎬 Bred Pitt", "🎭 Leonardo Dicaprio",
+    "📽️ Barcha Hollywood"
+]))
+async def show_hollywood_actor_movies(message: types.Message):
+    """Hollywood aktyorlari bo'yicha kinolarni ko'rsatish"""
+    actor_name = message.text
+    if actor_name == "📽️ Barcha Hollywood":
+        await show_category_movies(message, "🎭 Hollywood Kinolari", "Barcha Hollywood kinolari")
+    else:
+        await show_actor_movies_detailed(message, actor_name)
+
+@dp.message(F.text.in_([
+    "🤴 Shakruhkhan", "🎬 Amirkhan", "💪 Akshay Kumar",
+    "👑 Salmonkhan", "🌟 SayfAlihon", "🎭 Amitahbachchan",
+    "🔥 MethunChakraborty", "🎥 Dharmendra", "🎞️ Raj Kapur",
+    "📀 Barcha Hind"
+]))
+async def show_hind_actor_movies(message: types.Message):
+    """Hind aktyorlari bo'yicha kinolarni ko'rsatish"""
+    actor_name = message.text
+    if actor_name == "📀 Barcha Hind":
+        await show_category_movies(message, "🎬 Hind Filmlari", "Barcha Hind filmlari")
+    else:
+        await show_actor_movies_detailed(message, actor_name)    
+
+# ==============================================================================
+# -*-*- BO'LIMLAR ICHIDAGI HANDLERLAR -*-*-
+# ==============================================================================
+
+@dp.message(F.text == "🎭 Hollywood Kinolari")
+async def show_hollywood_actors(message: types.Message):
+    """Hollywood aktyorlarini ko'rsatish"""
+    await message.answer(
+        "🎭 **Hollywood Aktyorlari**\n\n"
+        "Kerakli aktyorni tanlang:",
+        reply_markup=hollywood_actors_keyboard()
+    )
+
+@dp.message(F.text == "🎬 Hind Filmlari")
+async def show_hind_actors(message: types.Message):
+    """Hind aktyorlarini ko'rsatish"""
+    await message.answer(
+        "🎬 **Hind Aktyorlari**\n\n"
+        "Kerakli aktyorni tanlang:",
+        reply_markup=hind_actors_keyboard()
+    )
+
+@dp.message(F.text == "📺 Hind Seriallari")
+async def show_hind_series(message: types.Message):
+    """Hind seriallarini ko'rsatish"""
+    await show_category_movies(message, "📺 Hind Seriallari", "Hind seriallari")
+
+@dp.message(F.text == "🎥 Rus Kinolari")
+async def show_russian_movies_menu(message: types.Message):
+    """Rus kinolarini ko'rsatish"""
+    await message.answer(
+        "🎥 **Rus Kinolari**\n\n"
+        "Kerakli kinoni tanlang:",
+        reply_markup=russian_movies_keyboard()
+    )
+
+@dp.message(F.text == "📟 Rus Seriallari")
+async def show_russian_series(message: types.Message):
+    """Rus seriallarini ko'rsatish"""
+    await show_category_movies(message, "📟 Rus Seriallari", "Rus seriallari")
+
+@dp.message(F.text == "🎞️ O'zbek Kinolari")
+async def show_uzbek_movies(message: types.Message):
+    """O'zbek kinolarini ko'rsatish"""
+    await show_category_movies(message, "🎞️ O'zbek Kinolari", "O'zbek kinolari")
+
+@dp.message(F.text == "📱 O'zbek Seriallari")
+async def show_uzbek_series(message: types.Message):
+    """O'zbek seriallarini ko'rsatish"""
+    await show_category_movies(message, "📱 O'zbek Seriallari", "O'zbek seriallari")
+
+@dp.message(F.text == "🕌 Islomiy Kinolar")
+async def show_islamic_movies(message: types.Message):
+    """Islomiy kinolarni ko'rsatish"""
+    await show_category_movies(message, "🕌 Islomiy Kinolar", "Islomiy kinolar")
+
+@dp.message(F.text == "📖 Islomiy Seriallar")
+async def show_islamic_series(message: types.Message):
+    """Islomiy seriallarni ko'rsatish"""
+    await message.answer(
+        "📖 **Islomiy Seriallar**\n\n"
+        "Kerakli serialni tanlang:",
+        reply_markup=islamic_series_keyboard()
+    )
+
+@dp.message(F.text == "🇹🇷 Turk Kinolari")
+async def show_turkish_movies(message: types.Message):
+    """Turk kinolarini ko'rsatish"""
+    await show_category_movies(message, "🇹🇷 Turk Kinolari", "Turk kinolari")
+
+@dp.message(F.text == "📺 Turk Seriallari")
+async def show_turkish_series(message: types.Message):
+    """Turk seriallarini ko'rsatish"""
+    await message.answer(
+        "📺 **Turk Seriallari**\n\n"
+        "Kerakli serialni tanlang:",
+        reply_markup=turkish_series_keyboard()
+    )
+
+@dp.message(F.text == "👶 Bolalar Kinolari")
+async def show_kids_movies_menu(message: types.Message):
+    """Bolalar kinolarini ko'rsatish"""
+    await message.answer(
+        "👶 **Bolalar Kinolari**\n\n"
+        "Kerakli kinoni tanlang:",
+        reply_markup=kids_movies_keyboard()
+    )
+
+@dp.message(F.text == "🐰 Bolalar Multfilmlari")
+async def show_kids_cartoons_menu(message: types.Message):
+    """Bolalar multfilmlarini ko'rsatish"""
+    await message.answer(
+        "🐰 **Bolalar Multfilmlari**\n\n"
+        "Kerakli multfilmni tanlang:",
+        reply_markup=kids_cartoons_keyboard()
+    )
+
+@dp.message(F.text == "🇰🇷 Koreys Kinolari")
+async def show_korean_movies_menu(message: types.Message):
+    """Koreys kinolarini ko'rsatish"""
+    await message.answer(
+        "🇰🇷 **Koreys Kinolari**\n\n"
+        "Kerakli kinoni tanlang:",
+        reply_markup=korean_movies_keyboard()
+    )
+
+@dp.message(F.text == "📡 Koreys Seriallari")
+async def show_korean_series_menu(message: types.Message):
+    """Koreys seriallarini ko'rsatish"""
+    await message.answer(
+        "📡 **Koreys Seriallari**\n\n"
+        "Kerakli serialni tanlang:",
+        reply_markup=korean_series_keyboard()
+    )
+
+@dp.message(F.text == "🎯 Qisqa Filmlar")
+async def show_short_films(message: types.Message):
+    """Qisqa filmlarni ko'rsatish"""
+    await show_category_movies(message, "🎯 Qisqa Filmlar", "Qisqa filmlar")
+
+@dp.message(F.text == "🎤 Konsert Dasturlari")
+async def show_concert_programs(message: types.Message):
+    """Konsert dasturlarini ko'rsatish"""
+    await show_category_movies(message, "🎤 Konsert Dasturlari", "Konsert dasturlari")    
 
 # ==============================================================================
 # -*-*- ADMIN KLAVIATURALARI -*-*-
@@ -3171,130 +3390,7 @@ async def show_category_movies(message: types.Message, category_name: str, displ
             f"❌ {display_name.title()}ni yuklashda xatolik.\n\n"
             f"Iltimos, keyinroq urinib ko'ring.",
             reply_markup=get_category_keyboard("main")
-        )    
-
-# ==============================================================================
-# -*-*- BO'LIMLAR ICHIDAGI KLAVIATURALAR -*-*-
-# ==============================================================================
-
-def hollywood_movies_keyboard():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="🎬 Mel Gibson Kinolari"), KeyboardButton(text="💪 Arnold Schwarzenegger Kinolari")],
-            [KeyboardButton(text="🥊 Sylvester Stallone Kinolari"), KeyboardButton(text="🚗 Jason Statham Kinolari")],
-            [KeyboardButton(text="🐲 Jeki Chan Kinolari"), KeyboardButton(text="🥋 Skod Adkins Kinolari")],
-            [KeyboardButton(text="🎭 Denzil Washington Kinolari"), KeyboardButton(text="💥 Jan Clod Van Dam Kinolari")],
-            [KeyboardButton(text="👊 Brus lee Kinolari"), KeyboardButton(text="😂 Jim Cerry Kinolari")],
-            [KeyboardButton(text="🏴‍☠️ Jonni Depp Kinolari"), KeyboardButton(text="🥋 Jet Lee Kinolari")],
-            [KeyboardButton(text="👊 Mark Dacascos Kinolari"), KeyboardButton(text="🎬 Bred Pitt Kinolari")],
-            [KeyboardButton(text="🎭 Leonardo Dicaprio Kinolari"), KeyboardButton(text="📽️ Barcha Hollywood Kinolari")],
-            [KeyboardButton(text="🔙 Bo'limlarga qaytish")],
-        ],
-        resize_keyboard=True
-    )
-
-def indian_movies_keyboard():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="🤴 Shakruhkhan Kinolari"), KeyboardButton(text="🎬 Amirkhan Kinolari")],
-            [KeyboardButton(text="💪 Akshay Kumar Kinolari"), KeyboardButton(text="👑 Salmonkhan Kinolari")],
-            [KeyboardButton(text="🌟 SayfAlihon Kinolari"), KeyboardButton(text="🎭 Amitahbachchan Kinolari")],
-            [KeyboardButton(text="🔥 MethunChakraborty Kinolari"), KeyboardButton(text="🎥 Dharmendra Kinolari")],
-            [KeyboardButton(text="🎞️ Raj Kapur Kinolari"), KeyboardButton(text="🚗 Tezlik 1/2/3 Qismlar")],
-            [KeyboardButton(text="📀 Boshqa Hind Kinolari"), KeyboardButton(text="🔙 Bo'limlarga qaytish")],
-        ],
-        resize_keyboard=True
-    )
-
-def russian_movies_keyboard():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="💼 Ishdagi Ishq"), KeyboardButton(text="🎭 Shurikning Sarguzashtlari")],
-            [KeyboardButton(text="👑 Ivan Vasilivich"), KeyboardButton(text="🔥 Gugurtga Ketib")],
-            [KeyboardButton(text="🕵️ If Qalqasing Mahbuzi"), KeyboardButton(text="👶 O'nta Neger Bolasi")],
-            [KeyboardButton(text="⚔️ Qo'lga Tushmas Qasoskorlar"), KeyboardButton(text="📀 Barcha Rus Kinolari")],
-            [KeyboardButton(text="🔙 Bo'limlarga qaytish")],
-        ],
-        resize_keyboard=True
-    )
-
-def russian_series_keyboard():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="🎮 Igra Seriali"), KeyboardButton(text="🚗 Bumer Seriali")],
-            [KeyboardButton(text="👥 Birgada Seriali"), KeyboardButton(text="📺 Barcha Rus Seriallari")],
-            [KeyboardButton(text="🔙 Bo'limlarga qaytish")],
-        ],
-        resize_keyboard=True
-    )
-
-def kids_movies_keyboard():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="🏠 Bola Uyda Yolg'iz 1"), KeyboardButton(text="🏠 Bola Uyda Yolg'iz 2")],
-            [KeyboardButton(text="🏠 Bola Uyda Yolg'iz 3"), KeyboardButton(text="✈️ Uchubchi Devid")],
-            [KeyboardButton(text="⚡ Garry Poter 1"), KeyboardButton(text="⚡ Garry Poter 2")],
-            [KeyboardButton(text="⚡ Garry Poter 3"), KeyboardButton(text="⚡ Garry Poter 4")],
-            [KeyboardButton(text="🎬 Barcha Bolalar Kinolari"), KeyboardButton(text="🔙 Bo'limlarga qaytish")],
-        ],
-        resize_keyboard=True
-    )
-
-def kids_cartoons_keyboard():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="❄️ Muzlik Davri 1"), KeyboardButton(text="❄️ Muzlik Davri 2")],
-            [KeyboardButton(text="❄️ Muzlik Davri 3"), KeyboardButton(text="🐭 Tom & Jerry")],
-            [KeyboardButton(text="🐻 Bori va Quyon"), KeyboardButton(text="🐻 Ayiq va Masha")],
-            [KeyboardButton(text="🐼 Kungfu Panda 1"), KeyboardButton(text="🐼 Kungfu Panda 2")],
-            [KeyboardButton(text="🐼 Kungfu Panda 3"), KeyboardButton(text="🐼 Kungfu Panda 4")],
-            [KeyboardButton(text="🐎 Mustang"), KeyboardButton(text="📀 Barcha Multfilmlar")],
-            [KeyboardButton(text="🔙 Bo'limlarga qaytish")],
-        ],
-        resize_keyboard=True
-    )
-
-def islamic_series_keyboard():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="🕌 Uvays Karoniy"), KeyboardButton(text="👑 Umar ibn Hattob")],
-            [KeyboardButton(text="🌙 Olamga Nur Soshgan Oy"), KeyboardButton(text="📺 Barcha Islomiy Seriallar")],
-            [KeyboardButton(text="🔙 Bo'limlarga qaytish")],
-        ],
-        resize_keyboard=True
-    )
-
-def korean_series_keyboard():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="❄️ Qish Sonatasi 1-20"), KeyboardButton(text="☀️ Yoz Ifori 1-20")],
-            [KeyboardButton(text="💖 Qalbim Chechagi 1-17"), KeyboardButton(text="🏦 Va Bank 1-20")],
-            [KeyboardButton(text="👑 Jumong 1-20"), KeyboardButton(text="⚓ Dengiz Hukumdori 1-20")],
-            [KeyboardButton(text="📺 Barcha Koreys Seriallari"), KeyboardButton(text="🔙 Bo'limlarga qaytish")],
-        ],
-        resize_keyboard=True
-    )
-
-def korean_movies_keyboard():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="🏙️ Jinoyatchilar Shahri 1"), KeyboardButton(text="🏙️ Jinoyatchilar Shahri 2")],
-            [KeyboardButton(text="🏙️ Jinoyatchilar Shahri 3"), KeyboardButton(text="🏙️ Jinoyatchilar Shahri 4")],
-            [KeyboardButton(text="🎬 Barcha Koreys Kinolari"), KeyboardButton(text="🔙 Bo'limlarga qaytish")],
-        ],
-        resize_keyboard=True
-    )
-
-def turkish_series_keyboard():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="👑 Sulton Abdulhamidhon"), KeyboardButton(text="🐺 Qashqirlar Makoni")],
-            [KeyboardButton(text="📺 Barcha Turk Seriallari"), KeyboardButton(text="🔙 Bo'limlarga qaytish")],
-        ],
-        resize_keyboard=True
-    )
-        
-
+        )   
 # ==============================================================================
 # -*-*- NAVIGATSIYA HANDLERLARI -*-*-
 # ==============================================================================
