@@ -2561,16 +2561,12 @@ async def back_from_payment(message: types.Message, state: FSMContext):
         "To'lov bekor qilindi.",
         reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
     ) 
-
-    
 # ==============================================================================
 # -*-*- HOLLYWOOD ACTORLARINI KO'RSATISH -*-*-
 # ==============================================================================
-# HOLLYWOOD
 @dp.message(F.text == "🎭 Hollywood Kinolari")
 async def show_hollywood_movies(message: types.Message):
-    movies = db.get_movies_by_category("🎭 Hollywood Kinolar
-    
+    """Hollywood kinolarini to'g'ridan-to'g'ri ko'rsatish"""
     # Hollywood kategoriyasidagi barcha kinolarni olish
     movies = db.get_movies_by_category("🎭 Hollywood Kinolari")
 
@@ -2613,11 +2609,9 @@ async def show_hollywood_movies(message: types.Message):
 # ==============================================================================
 # -*-*- HIND ACTORLARINI KO'RSATISH -*-*-
 # ==============================================================================
-# HIND
 @dp.message(F.text == "🎬 Hind Filmlari")
 async def show_indian_movies(message: types.Message):
-    movies = db.get_movies_by_category("🎬 Hind Filmlari")
-    
+    """Hind kinolarini to'g'ridan-to'g'ri ko'rsatish"""
     # Hind kategoriyasidagi barcha kinolarni olish
     movies = db.get_movies_by_category("🎬 Hind Filmlari")
 
@@ -2660,14 +2654,14 @@ async def show_indian_movies(message: types.Message):
 @dp.message(F.text == "📺 Hind Seriallari")
 async def show_indian_series(message: types.Message):
     """Hind seriallarini ko'rsatish"""
-    movies = db.get_movies_by_category("📺 Hind")
+    movies = db.get_movies_by_category("📺 Hind Seriallari")
     
     if not movies:
-    await message.answer(
-        "❌ Hozircha bu bo'limda kontentlar mavjud emas.",
-        reply_markup=get_category_keyboard("main")
-    )
-    return
+        await message.answer(
+            "❌ Hozircha bu bo'limda kontentlar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
 
     keyboard = []
     for movie in movies:
@@ -2686,10 +2680,13 @@ async def show_indian_series(message: types.Message):
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
 
-# RUS
+# ==============================================================================
+# -*-*- RUS KINOLARI -*-*-
+# ==============================================================================
 @dp.message(F.text == "🎥 Rus Kinolari")
 async def show_russian_movies(message: types.Message):
-    movies = db.get_movies_by_category("🎥 Rus Kinolari") 
+    """Rus kinolarini ko'rsatish"""
+    movies = db.get_movies_by_category("🎥 Rus Kinolari")
     
     if not movies:
         await message.answer(
@@ -2718,7 +2715,7 @@ async def show_russian_movies(message: types.Message):
 @dp.message(F.text == "📟 Rus Seriallari")
 async def show_russian_series(message: types.Message):
     """Rus seriallarini ko'rsatish"""
-    movies = db.get_movies_by_category("📟 Rus")
+    movies = db.get_movies_by_category("📟 Rus Seriallari")
     
     if not movies:
         await message.answer(
@@ -2729,7 +2726,7 @@ async def show_russian_series(message: types.Message):
     
     keyboard = []
     for movie in movies:
-        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
         button_text = f"🎬 {title}"
         if actor_name:
             button_text += f" - {actor_name}"
@@ -2744,9 +2741,12 @@ async def show_russian_series(message: types.Message):
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
 
-# O'ZBEK
+# ==============================================================================
+# -*-*- O'ZBEK KINOLARI -*-*-
+# ==============================================================================
 @dp.message(F.text == "🎞️ O'zbek Kinolari")
 async def show_uzbek_movies(message: types.Message):
+    """O'zbek kinolarini ko'rsatish"""
     movies = db.get_movies_by_category("🎞️ O'zbek Kinolari")
     
     if not movies:
@@ -2776,7 +2776,7 @@ async def show_uzbek_movies(message: types.Message):
 @dp.message(F.text == "📱 O'zbek Seriallari")
 async def show_uzbek_series(message: types.Message):
     """O'zbek seriallarini ko'rsatish"""
-    movies = db.get_movies_by_category("📱 O'zbek")
+    movies = db.get_movies_by_category("📱 O'zbek Seriallari")
     
     if not movies:
         await message.answer(
@@ -2802,10 +2802,13 @@ async def show_uzbek_series(message: types.Message):
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
 
+# ==============================================================================
+# -*-*- ISLOMIY KONTENTLAR -*-*-
+# ==============================================================================
 @dp.message(F.text == "🕌 Islomiy Kinolar")
 async def show_islamic_movies(message: types.Message):
     """Islomiy kinolarni ko'rsatish"""
-    movies = db.get_movies_by_category("🕌 Islomiy")
+    movies = db.get_movies_by_category("🕌 Islomiy Kinolar")
     
     if not movies:
         await message.answer(
@@ -2834,7 +2837,7 @@ async def show_islamic_movies(message: types.Message):
 @dp.message(F.text == "📖 Islomiy Seriallar")
 async def show_islamic_series(message: types.Message):
     """Islomiy seriallarni ko'rsatish"""
-    movies = db.get_movies_by_category("📖 Islomiy")
+    movies = db.get_movies_by_category("📖 Islomiy Seriallar")
     
     if not movies:
         await message.answer(
@@ -2860,10 +2863,13 @@ async def show_islamic_series(message: types.Message):
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
 
+# ==============================================================================
+# -*-*- TURK KINOLARI -*-*-
+# ==============================================================================
 @dp.message(F.text == "🇹🇷 Turk Kinolari")
 async def show_turkish_movies(message: types.Message):
     """Turk kinolarini ko'rsatish"""
-    movies = db.get_movies_by_category("🇹🇷 Turk")
+    movies = db.get_movies_by_category("🇹🇷 Turk Kinolari")
     
     if not movies:
         await message.answer(
@@ -2892,7 +2898,7 @@ async def show_turkish_movies(message: types.Message):
 @dp.message(F.text == "📺 Turk Seriallari")
 async def show_turkish_series(message: types.Message):
     """Turk seriallarini ko'rsatish"""
-    movies = db.get_movies_by_category("📺 Turk")
+    movies = db.get_movies_by_category("📺 Turk Seriallari")
     
     if not movies:
         await message.answer(
@@ -2918,10 +2924,13 @@ async def show_turkish_series(message: types.Message):
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
 
+# ==============================================================================
+# -*-*- BOLALAR KONTENTLARI -*-*-
+# ==============================================================================
 @dp.message(F.text == "👶 Bolalar Kinolari")
 async def show_kids_movies(message: types.Message):
     """Bolalar kinolarini ko'rsatish"""
-    movies = db.get_movies_by_category("👶 Bolalar")
+    movies = db.get_movies_by_category("👶 Bolalar Kinolari")
     
     if not movies:
         await message.answer(
@@ -2950,7 +2959,7 @@ async def show_kids_movies(message: types.Message):
 @dp.message(F.text == "🐰 Bolalar Multfilmlari")
 async def show_kids_cartoons(message: types.Message):
     """Bolalar multfilmlarini ko'rsatish"""
-    movies = db.get_movies_by_category("🐰 Bolalar")
+    movies = db.get_movies_by_category("🐰 Bolalar Multfilmlari")
     
     if not movies:
         await message.answer(
@@ -2976,10 +2985,13 @@ async def show_kids_cartoons(message: types.Message):
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
 
+# ==============================================================================
+# -*-*- KOREYS KONTENTLARI -*-*-
+# ==============================================================================
 @dp.message(F.text == "🇰🇷 Koreys Kinolari")
 async def show_korean_movies(message: types.Message):
     """Koreys kinolarini ko'rsatish"""
-    movies = db.get_movies_by_category("🇰🇷 Koreys")
+    movies = db.get_movies_by_category("🇰🇷 Koreys Kinolari")
     
     if not movies:
         await message.answer(
@@ -2990,7 +3002,7 @@ async def show_korean_movies(message: types.Message):
     
     keyboard = []
     for movie in movies:
-        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
         button_text = f"🎬 {title}"
         if actor_name:
             button_text += f" - {actor_name}"
@@ -3008,7 +3020,6 @@ async def show_korean_movies(message: types.Message):
 @dp.message(F.text == "📡 Koreys Seriallari")
 async def show_korean_series(message: types.Message):
     """Koreys seriallarini ko'rsatish"""
-    # TO'G'RILANGAN KOD:
     movies = db.get_movies_by_category("📡 Koreys Seriallari")
     
     if not movies:
@@ -3018,7 +3029,6 @@ async def show_korean_series(message: types.Message):
         )
         return
     
-    # Qolgan kod o'zgarmaydi...
     keyboard = []
     for movie in movies:
         movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie

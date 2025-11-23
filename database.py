@@ -384,17 +384,17 @@ class Database:
         return self.get_movie(movie_id)
 
     def get_movies_by_category(self, category):
-        """Kategoriya bo'yicha kinolarni olish (TO'LIQ SOLISHTIRISH)"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                SELECT movie_id, title, description, category, file_id, price, 
-                       is_premium, actor_name, banner_file_id, created_at, added_by 
-                FROM movies 
-                WHERE category = ?
-                ORDER BY created_at DESC
-            ''', (category,))
-            return cursor.fetchall()
+        """Berilgan kategoriyadagi kinolarni olish"""
+        try:
+            self.cursor.execute("""
+                SELECT * FROM movies 
+                WHERE category = ? 
+                ORDER BY price ASC, created_at DESC
+            """, (category,))
+            return self.cursor.fetchall()
+        except Exception as e:
+            print(f"Kategoriya bo'yicha kinolarni olishda xatolik: {e}")
+            return []
 
     def get_movies_by_category_for_admin(self, category):
         """Admin uchun kategoriya bo'yicha kinolarni olish"""
