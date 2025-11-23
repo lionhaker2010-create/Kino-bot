@@ -261,8 +261,9 @@ def admin_advanced_keyboard():
             [KeyboardButton(text="📈 Foydalanuvchilar statistikasi"), KeyboardButton(text="💰 To'lovlarni ko'rish")],
             [KeyboardButton(text="📢 Reklama yuborish"), KeyboardButton(text="👑 Premium Boshqaruv")],
             [KeyboardButton(text="🎬 Kontent Qo'shish"), KeyboardButton(text="📁 Kontentlar Boshqaruvi")],
-            [KeyboardButton(text="🔍 Kinolarni tekshirish"), KeyboardButton(text="📋 Kinolar ro'yxati")],  # YANGI
-            [KeyboardButton(text="🕒 Vaqtni tekshirish"), KeyboardButton(text="🧪 Test xabar")],
+            [KeyboardButton(text="🔍 Kinolarni tekshirish"), KeyboardButton(text="📋 Kinolar ro'yxati")],
+            [KeyboardButton(text="🕒 Vaqtni tekshirish"), KeyboardButton(text="🔍 AutoMessager Holati")],
+            [KeyboardButton(text="🔄 AutoMessager Qayta Ishga Tushirish"), KeyboardButton(text="🧪 Test xabar")],
             [KeyboardButton(text="🚫 Bloklash"), KeyboardButton(text="✅ Blokdan ochish")],
             [KeyboardButton(text="🔄 Holatni tozalash"), KeyboardButton(text="🔙 Asosiy Menyu")],
         ],
@@ -4594,6 +4595,66 @@ async def check_time_handler(message: types.Message):
             await message.answer(f"❌ Vaqtni tekshirishda xatolik: {e}")
     else:
         await message.answer("Sizga ruxsat yo'q!")
+        
+# ==============================================================================
+# -*-*- AUTO MESSAGER HOLATINI TEKSHIRISH -*-*-
+# ==============================================================================
+@dp.message(F.text == "🔍 AutoMessager Holati")
+async def check_auto_messager_status(message: types.Message):
+    """AutoMessager holatini tekshirish"""
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        try:
+            from auto_messager import AutoMessager
+            messager = AutoMessager(bot)
+            
+            # Vaqtni tekshirish
+            current_time, day_of_week = await messager.debug_time_check()
+            
+            response = (
+                f"🤖 **AUTO MESSAGER HOLATI**\n\n"
+                f"⏰ **Toshkent vaqti:** {current_time}\n"
+                f"📅 **Hafta kuni:** {day_of_week}\n"
+                f"🎯 **Xabar vaqtlari:** 08:00, 12:00, 21:00\n\n"
+                f"🔍 **Keyingi xabarlar:**\n"
+                f"• 12:00 - Kun yarmi ({messager._get_time_until('12:00')})\n"
+                f"• 21:00 - Kechki ({messager._get_time_until('21:00')})\n\n"
+                f"✅ **AutoMessager ishlayapti**"
+            )
+            
+            await message.answer(response)
+            
+        except Exception as e:
+            await message.answer(f"❌ AutoMessager xatosi: {e}")
+    else:
+        await message.answer("Sizga ruxsat yo'q!")   
+
+# ==============================================================================
+# -*-*- AUTO MESSAGER NI QAYTA ISHGA TUSHIRISH -*-*-
+# ==============================================================================
+@dp.message(F.text == "🔄 AutoMessager Qayta Ishga Tushirish")
+async def restart_auto_messager(message: types.Message):
+    """AutoMessager ni qayta ishga tushirish"""
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        try:
+            from auto_messager import AutoMessager
+            
+            # Yangi messager yaratish
+            messager = AutoMessager(bot)
+            await messager.start_scheduler()
+            
+            await message.answer(
+                "✅ **AutoMessager qayta ishga tushirildi!**\n\n"
+                "🤖 Xabar vaqtlari:\n"
+                "• 🌅 08:00 - Tong xabari\n"
+                "• ☀️ 12:00 - Tush xabari\n"
+                "• 🌙 21:00 - Kechki xabar\n\n"
+                "⏰ Toshkent vaqti bilan ishlaydi"
+            )
+            
+        except Exception as e:
+            await message.answer(f"❌ Qayta ishga tushirishda xatolik: {e}")
+    else:
+        await message.answer("Sizga ruxsat yo'q!")        
 
 @dp.message(F.text == "🧪 Test xabar")
 async def test_message_handler(message: types.Message):
