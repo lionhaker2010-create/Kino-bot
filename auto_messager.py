@@ -209,16 +209,79 @@ Juma kuni oilangiz bilan vaqt o'tkazing va bizning kinoteksimizdan foydalanib, d
         except Exception as e:
             self.logger.error(f"Xabar yuborishda xatolik: {e}")
     
+
+    # auto_messager.py ni yangilang
     async def start_scheduler(self):
         """Xabar yuborishni boshlash"""
-        self.logger.info("🕒 Avtomatik xabar yuborish ishga tushdi...")
+        self.logger.info("🕒 AutoMessager ishga tushdi...")
         
+        # Dastlabki tekshiruv
+        now = self._get_tashkent_time()
+        current_time = now.strftime("%H:%M:%S")
+        self.logger.info(f"🕒 Dastlabki vaqt: {current_time}")
+        self.logger.info(f"🎯 Xabar vaqtlari: 08:00, 12:00, 21:00")
+        
+        counter = 0
         while True:
             try:
                 await self.check_and_send_messages()
+                counter += 1
+                
+                # Har 10 tekshiruvda log yozish
+                if counter % 10 == 0:
+                    now = self._get_tashkent_time()
+                    current_time = now.strftime("%H:%M:%S")
+                    self.logger.info(f"🔄 AutoMessager ishlayapti... Vaqt: {current_time}, Tekshiruv: {counter}")
+                
                 # Har 1 daqiqada tekshirish
                 await asyncio.sleep(60)
                 
             except Exception as e:
-                self.logger.error(f"Scheduler xatoligi: {e}")
+                self.logger.error(f"❌ Scheduler xatoligi: {e}")
                 await asyncio.sleep(60)
+                
+        # -*-*- DEBUG FUNKSIYALARI -*-*-
+    async def debug_time_check(self):
+        """Vaqtni tekshirish uchun debug funksiya"""
+        now = self._get_tashkent_time()
+        current_time = now.strftime("%H:%M")
+        day_of_week = now.strftime("%A")
+        
+        debug_info = (
+            f"🕒 DEBUG: Toshkent vaqti: {current_time}\n"
+            f"📅 DEBUG: Hafta kuni: {day_of_week}\n" 
+            f"🎯 DEBUG: Xabar vaqtlari: 08:00, 12:00, 21:00\n"
+            f"⏰ DEBUG: Keyingi xabar: 12:00 (1 soat 31 daqiqa)"
+        )
+        
+        print(debug_info)
+        return current_time, day_of_week
+
+    async def manual_send_test_message(self, bot: Bot, message_type: str):
+        """Test xabar yuborish"""
+        try:
+            users = self.db.get_all_users()
+            test_count = min(5, len(users))  # Faqat 5 ta foydalanuvchiga
+            
+            if message_type == "morning":
+                message_text = self._get_morning_message(False)  # Oddiy tong
+            elif message_type == "noon":
+                message_text = self._get_noon_message()
+            elif message_type == "evening": 
+                message_text = self._get_evening_message()
+            else:
+                return "❌ Noto'g'ri xabar turi"
+            
+            success_count = 0
+            for i in range(test_count):
+                try:
+                    await bot.send_message(users[i][0], "🧪 **TEST XABAR**\n\n" + message_text, parse_mode='HTML')
+                    success_count += 1
+                    await asyncio.sleep(0.1)
+                except Exception as e:
+                    print(f"Test xabar xatosi: {e}")
+            
+            return f"✅ Test xabar {success_count} ta foydalanuvchiga yuborildi"
+            
+        except Exception as e:
+            return f"❌ Test xabar xatosi: {e}"         

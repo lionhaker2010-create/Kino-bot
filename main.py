@@ -261,6 +261,7 @@ def admin_advanced_keyboard():
             [KeyboardButton(text="📈 Foydalanuvchilar statistikasi"), KeyboardButton(text="💰 To'lovlarni ko'rish")],
             [KeyboardButton(text="📢 Reklama yuborish"), KeyboardButton(text="👑 Premium Boshqaruv")],
             [KeyboardButton(text="🎬 Kontent Qo'shish"), KeyboardButton(text="📁 Kontentlar Boshqaruvi")],
+            [KeyboardButton(text="🕒 Vaqtni tekshirish"), KeyboardButton(text="🧪 Test xabar")],  # YANGI
             [KeyboardButton(text="📋 Kinolar ro'yxati"), KeyboardButton(text="🚫 Bloklash")],
             [KeyboardButton(text="✅ Blokdan ochish"), KeyboardButton(text="🔄 Holatni tozalash")],
             [KeyboardButton(text="🔙 Asosiy Menyu")],
@@ -4512,6 +4513,93 @@ async def handle_other_messages(message: types.Message):
             "Iltimos, menyudan kerakli bo'limni tanlang 👇", 
             reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
         )
+       
+# ==============================================================================
+# -*-*- AUTO MESSAGER TEKSHIRISH -*-*-
+# ==============================================================================
+
+@dp.message(F.text == "🕒 Vaqtni tekshirish")
+async def check_time_handler(message: types.Message):
+    """Vaqtni tekshirish"""
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        try:
+            messager = AutoMessager(bot)
+            current_time, day_of_week = await messager.debug_time_check()
+            
+            response = (
+                f"🕒 **VAQT MA'LUMOTLARI**\n\n"
+                f"⏰ **Toshkent vaqti:** {current_time}\n"
+                f"📅 **Hafta kuni:** {day_of_week}\n"
+                f"🎯 **Xabar vaqtlari:** 08:00, 12:00, 21:00\n\n"
+                f"🔍 **Keyingi xabarlar:**\n"
+                f"• 12:00 - Kun yarmi ({self._get_time_until('12:00')})\n"
+                f"• 21:00 - Kechki ({self._get_time_until('21:00')})\n\n"
+                f"✅ **AutoMessager ishlayapti**"
+            )
+            
+            await message.answer(response)
+            
+        except Exception as e:
+            await message.answer(f"❌ Vaqtni tekshirishda xatolik: {e}")
+    else:
+        await message.answer("Sizga ruxsat yo'q!")
+
+@dp.message(F.text == "🧪 Test xabar")
+async def test_message_handler(message: types.Message):
+    """Test xabar yuborish"""
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        await message.answer(
+            "🧪 **Test xabar turini tanlang:**",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard=[
+                    [KeyboardButton(text="🌅 Tong testi"), KeyboardButton(text="☀️ Tush testi")],
+                    [KeyboardButton(text="🌙 Kech testi"), KeyboardButton(text="🔙 Admin Panel")]
+                ],
+                resize_keyboard=True
+            )
+        )
+    else:
+        await message.answer("Sizga ruxsat yo'q!")
+
+@dp.message(F.text.in_(["🌅 Tong testi", "☀️ Tush testi", "🌙 Kech testi"]))
+async def process_test_message(message: types.Message):
+    """Test xabarni yuborish"""
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        loading_msg = await message.answer("🧪 Test xabar yuborilmoqda...")
+        
+        try:
+            messager = AutoMessager(bot)
+            
+            if message.text == "🌅 Tong testi":
+                result = await messager.manual_send_test_message(bot, "morning")
+            elif message.text == "☀️ Tush testi":
+                result = await messager.manual_send_test_message(bot, "noon")
+            elif message.text == "🌙 Kech testi":
+                result = await messager.manual_send_test_message(bot, "evening")
+            
+            await loading_msg.edit_text(result)
+            
+        except Exception as e:
+            await loading_msg.edit_text(f"❌ Test xabar xatosi: {e}")
+    else:
+        await message.answer("Sizga ruxsat yo'q!")
+
+def _get_time_until(self, target_time: str):
+    """Berilgan vaqtgacha qolgan vaqtni hisoblash"""
+    from datetime import datetime
+    now = datetime.now()
+    target = datetime.strptime(target_time, "%H:%M").replace(
+        year=now.year, month=now.month, day=now.day
+    )
+    
+    if target < now:
+        target = target.replace(day=now.day + 1)
+    
+    time_diff = target - now
+    hours = time_diff.seconds // 3600
+    minutes = (time_diff.seconds % 3600) // 60
+    
+    return f"{hours} soat {minutes} daqiqa"       
        
 # ==============================================================================
 # -*-*- AVTOMATIK XABAR YUBORISHNI BOSHLASH -*-*-
