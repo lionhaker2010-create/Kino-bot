@@ -2566,10 +2566,10 @@ async def back_from_payment(message: types.Message, state: FSMContext):
 # ==============================================================================
 # -*-*- HOLLYWOOD ACTORLARINI KO'RSATISH -*-*-
 # ==============================================================================
+# HOLLYWOOD
 @dp.message(F.text == "🎭 Hollywood Kinolari")
 async def show_hollywood_movies(message: types.Message):
-    movies = db.get_movies_by_main_category("🎭 Hollywood Kinolari")  # YANGI
-    # ... qolgan kod
+    movies = db.get_all_movies_by_main_category("🎭 Hollywood Kinolari")  # YANGI
     
     # Hollywood kategoriyasidagi barcha kinolarni olish
     movies = db.get_movies_by_category("🎭 Hollywood")
@@ -2614,9 +2614,11 @@ async def show_hollywood_movies(message: types.Message):
 # ==============================================================================
 # -*-*- HIND ACTORLARINI KO'RSATISH -*-*-
 # ==============================================================================
+# HIND
 @dp.message(F.text == "🎬 Hind Filmlari")
 async def show_indian_movies(message: types.Message):
-    movies = db.get_movies_by_main_category("🎬 Hind Filmlari")  # YANGI
+    movies = db.get_all_movies_by_main_category("🎬 Hind Filmlari")  # YANGI
+
     
     # Hind kategoriyasidagi barcha kinolarni olish
     movies = db.get_movies_by_category("🎬 Hind")
@@ -2659,7 +2661,7 @@ async def show_indian_movies(message: types.Message):
 
 @dp.message(F.text == "📺 Hind Seriallari")
 async def show_indian_series(message: types.Message):
-    movies = db.get_movies_by_main_category("📺 Hind Seriallari")  # YANGI
+    movies = db.get_all_movies_by_main_category("📺 Hind Seriallari")  # YANGI
     
     if not movies:
         await message.answer(
@@ -2685,9 +2687,10 @@ async def show_indian_series(message: types.Message):
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
 
+# RUS
 @dp.message(F.text == "🎥 Rus Kinolari")
 async def show_russian_movies(message: types.Message):
-    movies = db.get_movies_by_main_category("🎥 Rus Kinolari")  # YANGI
+    movies = db.get_all_movies_by_main_category("🎥 Rus Kinolari")  # YANGI
     
     if not movies:
         await message.answer(
@@ -2714,7 +2717,7 @@ async def show_russian_movies(message: types.Message):
     )
 @dp.message(F.text == "📟 Rus Seriallari")
 async def show_russian_series(message: types.Message):
-    movies = db.get_movies_by_main_category("📟 Rus Seriallari")  # YANGI
+    movies = db.get_all_movies_by_main_category("📟 Rus Seriallari")  # YANGI
     
     if not movies:
         await message.answer(
@@ -2740,9 +2743,10 @@ async def show_russian_series(message: types.Message):
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
 
+# O'ZBEK
 @dp.message(F.text == "🎞️ O'zbek Kinolari")
 async def show_uzbek_movies(message: types.Message):
-    movies = db.get_movies_by_main_category("🎞️ O'zbek Kinolari")  # YANGI
+    movies = db.get_all_movies_by_main_category("🎞️ O'zbek Kinolari")  # YANGI
     
     if not movies:
         await message.answer(
@@ -2770,7 +2774,7 @@ async def show_uzbek_movies(message: types.Message):
 
 @dp.message(F.text == "📱 O'zbek Seriallari")
 async def show_uzbek_series(message: types.Message):
-    movies = db.get_movies_by_main_category("📱 O'zbek Seriallari")  # YANGI
+    movies = db.get_all_movies_by_main_category("📱 O'zbek Seriallari")  # YANGI
     
     if not movies:
         await message.answer(
@@ -2798,7 +2802,7 @@ async def show_uzbek_series(message: types.Message):
 
 @dp.message(F.text == "🕌 Islomiy Kinolar")
 async def show_islamic_movies(message: types.Message):
-    movies = db.get_movies_by_main_category("🕌 Islomiy Kinolar")  # YANGI
+    movies = db.get_all_movies_by_main_category("🕌 Islomiy Kinolar")  # YANGI
     
     if not movies:
         await message.answer(
@@ -2826,7 +2830,7 @@ async def show_islamic_movies(message: types.Message):
 
 @dp.message(F.text == "📖 Islomiy Seriallar")
 async def show_islamic_series(message: types.Message):
-    movies = db.get_movies_by_main_category("📖 Islomiy Seriallar")  # YANGI
+    movies = db.get_all_movies_by_main_category("📖 Islomiy Seriallar")  # YANGI
     
     if not movies:
         await message.answer(
@@ -2852,9 +2856,10 @@ async def show_islamic_series(message: types.Message):
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
 
+# TURK
 @dp.message(F.text == "🇹🇷 Turk Kinolari")
 async def show_turkish_movies(message: types.Message):
-    movies = db.get_movies_by_main_category("🇹🇷 Turk Kinolari")  # YANGI
+    movies = db.get_all_movies_by_main_category("🇹🇷 Turk Kinolari")  # YANGI
     
     if not movies:
         await message.answer(
@@ -2882,7 +2887,7 @@ async def show_turkish_movies(message: types.Message):
 
 @dp.message(F.text == "📺 Turk Seriallari")
 async def show_turkish_series(message: types.Message):
-    movies = db.get_movies_by_main_category("📺 Turk Seriallari")  # YANGI
+    movies = db.get_all_movies_by_main_category("📺 Turk Seriallari")  # YANGI
     
     if not movies:
         await message.answer(
@@ -2908,9 +2913,10 @@ async def show_turkish_series(message: types.Message):
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
 
+# BOLALAR
 @dp.message(F.text == "👶 Bolalar Kinolari")
 async def show_kids_movies(message: types.Message):
-    movies = db.get_movies_by_main_category("👶 Bolalar Kinolari")  # YANGI
+    movies = db.get_all_movies_by_main_category("👶 Bolalar Kinolari")  # YANGI
     
     if not movies:
         await message.answer(
@@ -2938,7 +2944,7 @@ async def show_kids_movies(message: types.Message):
 
 @dp.message(F.text == "🐰 Bolalar Multfilmlari")
 async def show_kids_cartoons(message: types.Message):
-    movies = db.get_movies_by_main_category("🐰 Bolalar Multfilmlari")  # YANGI
+    movies = db.get_all_movies_by_main_category("🐰 Bolalar Multfilmlari")  # YANGI
     
     if not movies:
         await message.answer(
@@ -2964,9 +2970,10 @@ async def show_kids_cartoons(message: types.Message):
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
 
+# KOREYS
 @dp.message(F.text == "🇰🇷 Koreys Kinolari")
 async def show_korean_movies(message: types.Message):
-    movies = db.get_movies_by_main_category("🇰🇷 Koreys Kinolari")  # YANGI
+    movies = db.get_all_movies_by_main_category("🇰🇷 Koreys Kinolari")  # YANGI
     
     if not movies:
         await message.answer(
@@ -2994,7 +3001,7 @@ async def show_korean_movies(message: types.Message):
 
 @dp.message(F.text == "📡 Koreys Seriallari")
 async def show_korean_series(message: types.Message):
-    movies = db.get_movies_by_main_category("📡 Koreys Seriallari")  # YANGI
+    movies = db.get_all_movies_by_main_category("📡 Koreys Seriallari")  # YANGI
     
     if not movies:
         await message.answer(
@@ -3020,9 +3027,10 @@ async def show_korean_series(message: types.Message):
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
     
+# BOSHQALAR
 @dp.message(F.text == "🎯 Qisqa Filmlar")
 async def show_short_films(message: types.Message):
-    movies = db.get_movies_by_main_category("🎯 Qisqa Filmlar")  # YANGI
+    movies = db.get_all_movies_by_main_category("🎯 Qisqa Filmlar")  # YANGI
     
     if not movies:
         await message.answer(
@@ -3050,7 +3058,7 @@ async def show_short_films(message: types.Message):
 
 @dp.message(F.text == "🎤 Konsert Dasturlari")
 async def show_concert_programs(message: types.Message):
-    movies = db.get_movies_by_main_category("🎤 Konsert Dasturlari")  # YANGI
+    movies = db.get_all_movies_by_main_category("🎤 Konsert Dasturlari")  # YANGI
     
     if not movies:
         await message.answer(
