@@ -4736,13 +4736,10 @@ def run_auto_messager():
 async def main():
     print("Bot ishga tushdi...")
     
-    # 🔥 FAQAT BITTA KEEP ALIVE
+    # 🔥 FAQAT BITTA KEEP ALIVE SERVER
     try:
-        from keep_alive import keep_alive, start_background_ping
-        
-        keep_alive()  # Server ni ishga tushirish
-        start_background_ping()  # Ping ni ishga tushirish
-        
+        from keep_alive import keep_alive
+        keep_alive()
     except Exception as e:
         print(f"❌ Keep-alive error: {e}")
     
@@ -4755,7 +4752,7 @@ async def main():
     except Exception as e:
         print(f"❌ AutoMessager error: {e}")
     
-    print("✅ Bot polling started!")
+    print("🔄 Bot polling started...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
