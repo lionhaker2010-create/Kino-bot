@@ -822,6 +822,35 @@ class Database:
             }
         }
         
+    # ==============================================================================
+    # -*-*- QO'SHIMCHA KINO QIDIRUV FUNKSIYALARI -*-*-
+    # ==============================================================================
+
+    def get_movies_by_actor(self, actor_name):
+        """Aktyor nomi bo'yicha kinolarni olish"""
+        try:
+            self.cursor.execute("""
+                SELECT * FROM movies 
+                WHERE actor_name = ? 
+                ORDER BY price ASC, created_at DESC
+            """, (actor_name,))
+            return self.cursor.fetchall()
+        except Exception as e:
+            print(f"Aktyor bo'yicha kinolarni olishda xatolik: {e}")
+            return []
+
+    def get_movies_by_category_and_actor(self, category, actor_name):
+        """Kategoriya va aktyor bo'yicha kinolarni olish"""
+        try:
+            self.cursor.execute("""
+                SELECT * FROM movies 
+                WHERE category LIKE ? AND actor_name = ?
+                ORDER BY price ASC, created_at DESC
+            """, (f'%{category}%', actor_name))
+            return self.cursor.fetchall()
+        except Exception as e:
+            print(f"Kategoriya va aktyor bo'yicha kinolarni olishda xatolik: {e}")
+            return []    
    
     # ==============================================================================
     # -*-*- FOYDALANUVCHI SOTIB OLGAN KONTENTLAR -*-*-
@@ -1254,32 +1283,4 @@ class Database:
                 'premium_users': premium_users,
                 'today_users': today_users,
                 'weekly_growth': weekly_growth
-            }   
-
-    # database.py fayliga qo'shing yoki yangilang:
-
-    def get_movies_by_actor(self, actor_name):
-        """Aktyor nomi bo'yicha kinolarni olish"""
-        try:
-            self.cursor.execute("""
-                SELECT * FROM movies 
-                WHERE actor_name = ? 
-                ORDER BY price ASC, created_at DESC
-            """, (actor_name,))
-            return self.cursor.fetchall()
-        except Exception as e:
-            print(f"Aktyor bo'yicha kinolarni olishda xatolik: {e}")
-            return []
-
-    def get_movies_by_category_and_actor(self, category, actor_name):
-        """Kategoriya va aktyor bo'yicha kinolarni olish"""
-        try:
-            self.cursor.execute("""
-                SELECT * FROM movies 
-                WHERE category LIKE ? AND actor_name = ?
-                ORDER BY price ASC, created_at DESC
-            """, (f'%{category}%', actor_name))
-            return self.cursor.fetchall()
-        except Exception as e:
-            print(f"Kategoriya va aktyor bo'yicha kinolarni olishda xatolik: {e}")
-            return []        
+            }         
