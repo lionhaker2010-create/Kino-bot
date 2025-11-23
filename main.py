@@ -4734,28 +4734,34 @@ def run_auto_messager():
 # ==============================================================================
 
 async def main():
-    print("Bot ishga tushdi...")
+    print("🤖 1. BOT ISHGA TUSHDI")
     
-    # 🔥 FAQAT BITTA KEEP ALIVE SERVER
+    # 1. KEEP ALIVE
     try:
         from keep_alive import keep_alive, start_background_ping
-        
-        keep_alive()  # Server ni ishga tushirish
-        start_background_ping()  # Ping ni ishga tushirish
-        
+        keep_alive()
+        start_background_ping()
+        print("✅ 2. Keep-alive server started!")
     except Exception as e:
         print(f"❌ Keep-alive error: {e}")
     
-    # 🔥 AVTOMATIK XABAR YUBORISH
+    # 2. AUTO MESSAGER NI TEST QILAMIZ
     try:
+        print("🔄 3. AutoMessager import qilinmoqda...")
         from auto_messager import AutoMessager
+        print("✅ 4. AutoMessager import bo'ldi")
+        
         messager = AutoMessager(bot)
+        print("✅ 5. AutoMessager obyekti yaratildi")
+        
         await messager.start_scheduler()
-        print("✅ AutoMessager started!")
+        print("✅ 6. AutoMessager started!")
+        
     except Exception as e:
         print(f"❌ AutoMessager error: {e}")
+        # Xatoni chiqarib, botni ishlatishda davom etamiz
     
-    print("🔄 Bot polling started...")
+    print("🔄 7. BOT POLLING BOSHLANMOQDA...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
