@@ -221,7 +221,6 @@ def main_menu_keyboard(user_id=None, username=None):
 
 # -*-*- BO'LIMLAR KLAVIATURASI -*-*-
 def sections_keyboard():
-    """Foydalanuvchilar uchun asosiy bo'limlar menyusi"""
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="🎭 Hollywood Kinolari"), KeyboardButton(text="🎬 Hind Filmlari")],
@@ -236,224 +235,6 @@ def sections_keyboard():
         ],
         resize_keyboard=True
     )
-    
-# main.py fayliga qo'shing:
-
-# HOLLYWOOD AKTYORLARI
-def hollywood_actors_keyboard():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="🎬 Mel Gibson"), KeyboardButton(text="💪 Arnold Schwarzenegger")],
-            [KeyboardButton(text="🥊 Sylvester Stallone"), KeyboardButton(text="🚗 Jason Statham")],
-            [KeyboardButton(text="🐲 Jeki Chan"), KeyboardButton(text="🥋 Skod Adkins")],
-            [KeyboardButton(text="🎭 Denzil Washington"), KeyboardButton(text="💥 Jan Clod Van Dam")],
-            [KeyboardButton(text="👊 Brus lee"), KeyboardButton(text="😂 Jim Cerry")],
-            [KeyboardButton(text="🏴‍☠️ Jonni Depp"), KeyboardButton(text="🥋 Jet Lee")],
-            [KeyboardButton(text="👊 Mark Dacascos"), KeyboardButton(text="🎬 Bred Pitt")],
-            [KeyboardButton(text="🎭 Leonardo Dicaprio"), KeyboardButton(text="📽️ Barcha Hollywood")],
-            [KeyboardButton(text="🔙 Orqaga")],
-        ],
-        resize_keyboard=True
-    )
-
-# HIND AKTYORLARI
-def hind_actors_keyboard():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="🤴 Shakruhkhan"), KeyboardButton(text="🎬 Amirkhan")],
-            [KeyboardButton(text="💪 Akshay Kumar"), KeyboardButton(text="👑 Salmonkhan")],
-            [KeyboardButton(text="🌟 SayfAlihon"), KeyboardButton(text="🎭 Amitahbachchan")],
-            [KeyboardButton(text="🔥 MethunChakraborty"), KeyboardButton(text="🎥 Dharmendra")],
-            [KeyboardButton(text="🎞️ Raj Kapur"), KeyboardButton(text="📀 Barcha Hind")],
-            [KeyboardButton(text="🔙 Orqaga")],
-        ],
-        resize_keyboard=True
-    )
-
-# RUS KINOLARI
-def russian_movies_keyboard():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="💼 Ishdagi Ishq"), KeyboardButton(text="🎭 Shurikning Sarguzashtlari")],
-            [KeyboardButton(text="👑 Ivan Vasilivich"), KeyboardButton(text="🔥 Gugurtga Ketib")],
-            [KeyboardButton(text="🕵️ If Qalqasing Mahbuzi"), KeyboardButton(text="👶 O'nta Neger Bolasi")],
-            [KeyboardButton(text="⚔️ Qo'lga Tushmas Qasoskorlar"), KeyboardButton(text="📀 Barcha Rus Kinolari")],
-            [KeyboardButton(text="🔙 Orqaga")],
-        ],
-        resize_keyboard=True
-    )
-
-# BOLALAR KINOLARI
-def kids_movies_keyboard():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="🏠 Bola Uyda Yolg'iz 1"), KeyboardButton(text="🏠 Bola Uyda Yolg'iz 2")],
-            [KeyboardButton(text="🏠 Bola Uyda Yolg'iz 3"), KeyboardButton(text="✈️ Uchubchi Devid")],
-            [KeyboardButton(text="⚡ Garry Poter 1"), KeyboardButton(text="⚡ Garry Poter 2")],
-            [KeyboardButton(text="⚡ Garry Poter 3"), KeyboardButton(text="⚡ Garry Poter 4")],
-            [KeyboardButton(text="🎬 Barcha Bolalar Kinolari"), KeyboardButton(text="🔙 Orqaga")],
-        ],
-        resize_keyboard=True
-    ) 
-
-# ==============================================================================
-# -*-*- AKTYORLAR BO'YICHA KINOLARNI KO'RSATISH -*-*-
-# ==============================================================================
-
-@dp.message(F.text.in_([
-    "🎬 Mel Gibson", "💪 Arnold Schwarzenegger", "🥊 Sylvester Stallone",
-    "🚗 Jason Statham", "🐲 Jeki Chan", "🥋 Skod Adkins",
-    "🎭 Denzil Washington", "💥 Jan Clod Van Dam", "👊 Brus lee",
-    "😂 Jim Cerry", "🏴‍☠️ Jonni Depp", "🥋 Jet Lee", 
-    "👊 Mark Dacascos", "🎬 Bred Pitt", "🎭 Leonardo Dicaprio",
-    "📽️ Barcha Hollywood"
-]))
-async def show_hollywood_actor_movies(message: types.Message):
-    """Hollywood aktyorlari bo'yicha kinolarni ko'rsatish"""
-    actor_name = message.text
-    if actor_name == "📽️ Barcha Hollywood":
-        await show_category_movies(message, "🎭 Hollywood Kinolari", "Barcha Hollywood kinolari")
-    else:
-        await show_actor_movies_detailed(message, actor_name)
-
-@dp.message(F.text.in_([
-    "🤴 Shakruhkhan", "🎬 Amirkhan", "💪 Akshay Kumar",
-    "👑 Salmonkhan", "🌟 SayfAlihon", "🎭 Amitahbachchan",
-    "🔥 MethunChakraborty", "🎥 Dharmendra", "🎞️ Raj Kapur",
-    "📀 Barcha Hind"
-]))
-async def show_hind_actor_movies(message: types.Message):
-    """Hind aktyorlari bo'yicha kinolarni ko'rsatish"""
-    actor_name = message.text
-    if actor_name == "📀 Barcha Hind":
-        await show_category_movies(message, "🎬 Hind Filmlari", "Barcha Hind filmlari")
-    else:
-        await show_actor_movies_detailed(message, actor_name)    
-
-# ==============================================================================
-# -*-*- BO'LIMLAR ICHIDAGI HANDLERLAR -*-*-
-# ==============================================================================
-
-@dp.message(F.text == "🎭 Hollywood Kinolari")
-async def show_hollywood_actors(message: types.Message):
-    """Hollywood aktyorlarini ko'rsatish"""
-    await message.answer(
-        "🎭 **Hollywood Aktyorlari**\n\n"
-        "Kerakli aktyorni tanlang:",
-        reply_markup=hollywood_actors_keyboard()
-    )
-
-@dp.message(F.text == "🎬 Hind Filmlari")
-async def show_hind_actors(message: types.Message):
-    """Hind aktyorlarini ko'rsatish"""
-    await message.answer(
-        "🎬 **Hind Aktyorlari**\n\n"
-        "Kerakli aktyorni tanlang:",
-        reply_markup=hind_actors_keyboard()
-    )
-
-@dp.message(F.text == "📺 Hind Seriallari")
-async def show_hind_series(message: types.Message):
-    """Hind seriallarini ko'rsatish"""
-    await show_category_movies(message, "📺 Hind Seriallari", "Hind seriallari")
-
-@dp.message(F.text == "🎥 Rus Kinolari")
-async def show_russian_movies_menu(message: types.Message):
-    """Rus kinolarini ko'rsatish"""
-    await message.answer(
-        "🎥 **Rus Kinolari**\n\n"
-        "Kerakli kinoni tanlang:",
-        reply_markup=russian_movies_keyboard()
-    )
-
-@dp.message(F.text == "📟 Rus Seriallari")
-async def show_russian_series(message: types.Message):
-    """Rus seriallarini ko'rsatish"""
-    await show_category_movies(message, "📟 Rus Seriallari", "Rus seriallari")
-
-@dp.message(F.text == "🎞️ O'zbek Kinolari")
-async def show_uzbek_movies(message: types.Message):
-    """O'zbek kinolarini ko'rsatish"""
-    await show_category_movies(message, "🎞️ O'zbek Kinolari", "O'zbek kinolari")
-
-@dp.message(F.text == "📱 O'zbek Seriallari")
-async def show_uzbek_series(message: types.Message):
-    """O'zbek seriallarini ko'rsatish"""
-    await show_category_movies(message, "📱 O'zbek Seriallari", "O'zbek seriallari")
-
-@dp.message(F.text == "🕌 Islomiy Kinolar")
-async def show_islamic_movies(message: types.Message):
-    """Islomiy kinolarni ko'rsatish"""
-    await show_category_movies(message, "🕌 Islomiy Kinolar", "Islomiy kinolar")
-
-@dp.message(F.text == "📖 Islomiy Seriallar")
-async def show_islamic_series(message: types.Message):
-    """Islomiy seriallarni ko'rsatish"""
-    await message.answer(
-        "📖 **Islomiy Seriallar**\n\n"
-        "Kerakli serialni tanlang:",
-        reply_markup=islamic_series_keyboard()
-    )
-
-@dp.message(F.text == "🇹🇷 Turk Kinolari")
-async def show_turkish_movies(message: types.Message):
-    """Turk kinolarini ko'rsatish"""
-    await show_category_movies(message, "🇹🇷 Turk Kinolari", "Turk kinolari")
-
-@dp.message(F.text == "📺 Turk Seriallari")
-async def show_turkish_series(message: types.Message):
-    """Turk seriallarini ko'rsatish"""
-    await message.answer(
-        "📺 **Turk Seriallari**\n\n"
-        "Kerakli serialni tanlang:",
-        reply_markup=turkish_series_keyboard()
-    )
-
-@dp.message(F.text == "👶 Bolalar Kinolari")
-async def show_kids_movies_menu(message: types.Message):
-    """Bolalar kinolarini ko'rsatish"""
-    await message.answer(
-        "👶 **Bolalar Kinolari**\n\n"
-        "Kerakli kinoni tanlang:",
-        reply_markup=kids_movies_keyboard()
-    )
-
-@dp.message(F.text == "🐰 Bolalar Multfilmlari")
-async def show_kids_cartoons_menu(message: types.Message):
-    """Bolalar multfilmlarini ko'rsatish"""
-    await message.answer(
-        "🐰 **Bolalar Multfilmlari**\n\n"
-        "Kerakli multfilmni tanlang:",
-        reply_markup=kids_cartoons_keyboard()
-    )
-
-@dp.message(F.text == "🇰🇷 Koreys Kinolari")
-async def show_korean_movies_menu(message: types.Message):
-    """Koreys kinolarini ko'rsatish"""
-    await message.answer(
-        "🇰🇷 **Koreys Kinolari**\n\n"
-        "Kerakli kinoni tanlang:",
-        reply_markup=korean_movies_keyboard()
-    )
-
-@dp.message(F.text == "📡 Koreys Seriallari")
-async def show_korean_series_menu(message: types.Message):
-    """Koreys seriallarini ko'rsatish"""
-    await message.answer(
-        "📡 **Koreys Seriallari**\n\n"
-        "Kerakli serialni tanlang:",
-        reply_markup=korean_series_keyboard()
-    )
-
-@dp.message(F.text == "🎯 Qisqa Filmlar")
-async def show_short_films(message: types.Message):
-    """Qisqa filmlarni ko'rsatish"""
-    await show_category_movies(message, "🎯 Qisqa Filmlar", "Qisqa filmlar")
-
-@dp.message(F.text == "🎤 Konsert Dasturlari")
-async def show_concert_programs(message: types.Message):
-    """Konsert dasturlarini ko'rsatish"""
-    await show_category_movies(message, "🎤 Konsert Dasturlari", "Konsert dasturlari")    
 
 # ==============================================================================
 # -*-*- ADMIN KLAVIATURALARI -*-*-
@@ -488,29 +269,14 @@ def admin_advanced_keyboard():
         ],
         resize_keyboard=True
     )
-
+    
 # ==============================================================================
 # -*-*- HOLATNI TOZALASH -*-*-
 # ==============================================================================
-
-# Debug funksiya qo'shamiz
-@dp.message(F.text == "🔍 State Holatini Tekshirish")
-async def check_state_status(message: types.Message, state: FSMContext):
-    """State holatini tekshirish"""
-    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
-        current_state = await state.get_state()
-        data = await state.get_data()
-        
-        await message.answer(
-            f"🔍 **STATE HOLATI:**\n\n"
-            f"📊 **Joriy holat:** {current_state}\n"
-            f"📋 **Ma'lumotlar:** {data}\n\n"
-            f"🧪 **Test qilish:**\n"
-            f"1. '🎬 Kino Qo'shish' ni bosing\n"
-            f"2. Kino nomi va tavsifini kiriting\n"
-            f"3. '🎭 Hollywood Kinolari' ni tanlang\n"
-            f"4. Bu yerda state holatini tekshiring"
-        )   
+@dp.message(F.text == "🔄 Holatni tozalash")
+async def clear_state(message: types.Message, state: FSMContext):
+    await state.clear()
+    await message.answer("✅ Holat tozalandi. Qaytadan boshlang.", reply_markup=admin_keyboard())    
     
 # -*-*- PREMIUM BOSHQARUV KLAVIATURASI -*-*-
 def premium_management_keyboard():
@@ -1084,57 +850,23 @@ async def process_main_category(message: types.Message, state: FSMContext):
         await state.update_data(sub_category="", actor="")
 
 # -*-*- ICHKI KATEGORIYA TANLASH -*-*-
-# -*-*- ICHKI KATEGORIYA TANLASH (YANGI) -*-*-
 @dp.message(ContentManagementState.waiting_sub_category)
-async def process_sub_category_new(message: types.Message, state: FSMContext):
-    """Ichki kategoriya tanlash - YANGI VERSIYA"""
-    print(f"🎯 YANGI DEBUG: process_sub_category_new ishga tushdi")
-    print(f"🎯 YANGI DEBUG: Foydalanuvchi matni: '{message.text}'")
+async def process_sub_category(message: types.Message, state: FSMContext):
+    print(f"DEBUG: Ichki kategoriya tanlandi: '{message.text}'")
     
-    # Orqaga tugmasi
     if message.text == "🔙 Orqaga":
         await message.answer("Asosiy kategoriyani tanlang:", reply_markup=get_category_keyboard("main"))
         await state.set_state(ContentManagementState.waiting_main_category)
         return
+        
+    # ICHKI KATEGORIYA = AKTYOR NOMI
+    await state.update_data(sub_category=message.text, actor=message.text)
     
-    # Aktyor nomini saqlash
-    actor_name = message.text
-    print(f"🎯 YANGI DEBUG: Aktyor tanlandi: {actor_name}")
-    
-    # State ma'lumotlarini yangilash
-    await state.update_data(
-        sub_category=actor_name,
-        actor=actor_name
-    )
-    
-    # Tekshirish uchun state ma'lumotlarini olish
-    current_data = await state.get_data()
-    print(f"🎯 YANGI DEBUG: Current state data: {current_data}")
-    
-    # Narx so'rash
     await message.answer(
-        "💵 **Kino narxini kiriting (so'mda):**\n\n"
-        "0 - Bepul kontent\n"
-        "30000 - Pullik kontent",
-        reply_markup=ReplyKeyboardRemove()
+        "💵 Kino narxini kiriting (so'mda):\n0 - Bepul\n30000 - Yuklab olish uchun",
+        reply_markup=ReplyKeyboardRemove()  # Klaviaturani olib tashlaymiz
     )
-    
-    # Yangi holatga o'tish
     await state.set_state(ContentManagementState.waiting_movie_price)
-    print(f"🎯 YANGI DEBUG: Yangi holatga o'tildi: ContentManagementState.waiting_movie_price")
-
-# 3. KEYIN test funksiyasini qo'shing (ixtiyoriy):
-@dp.message(F.text == "🔍 Test Sub Category")
-async def test_sub_category(message: types.Message, state: FSMContext):
-    """Test uchun sub category holatini yaratish"""
-    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
-        await state.set_state(ContentManagementState.waiting_sub_category)
-        await state.update_data(main_category="🎭 Hollywood Kinolari")
-        await message.answer(
-            "🧪 **Test rejimida**\n\n"
-            "Aktyor tanlang:",
-            reply_markup=get_category_keyboard("sub", "🎭 Hollywood Kinolari")
-        )
     
 # -*-*- KINO NARXI QABUL QILISH -*-*-
 @dp.message(ContentManagementState.waiting_movie_price)
@@ -1437,127 +1169,51 @@ async def process_unblock_confirmation(message: types.Message, state: FSMContext
     await state.clear()  
 
 # ==============================================================================
-# -*-*- BARCHA KONTENTLAR HANDLERI (TUZATILGAN) -*-*-
+# -*-*- BARCHA KONTENTLAR HANDLERI -*-*-
 # ==============================================================================
 
 @dp.message(F.text == "🎬 Barcha Kontentlar")
-async def all_content_fixed(message: types.Message):
-    """Barcha kontentlarni ko'rsatish - TUZATILGAN VERSIYA"""
+async def all_content(message: types.Message):
+    """Barcha kontentlarni ko'rsatish"""
     # Blok tekshiruvi
     if await check_and_block(message):
         return
     
-    try:
-        # Barcha kinolarni olish
-        movies = db.get_all_movies_sorted()
-        
-        if not movies:
-            await message.answer(
-                "❌ Hozircha hech qanday kontent mavjud emas.",
-                reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
-            )
-            return
-        
-        # Kontentlarni to'g'ri guruhlash
-        free_movies = []
-        paid_movies = []
-        
-        for movie in movies:
-            try:
-                # TO'G'RI INDEKSLAR - 11 ta ustun mavjud
-                movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
-                
-                if price == 0:
-                    free_movies.append(movie)
-                else:
-                    paid_movies.append(movie)
-                    
-            except Exception as e:
-                print(f"Kino ma'lumotlarini olishda xatolik: {e}")
-                continue
-        
-        # Klaviatura yaratish
-        keyboard = []
-        
-        # Bepul kinolar
-        for movie in free_movies:
-            try:
-                movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
-                button_text = f"🎬 {title}"
-                if actor_name:
-                    button_text += f" - {actor_name}"
-                keyboard.append([KeyboardButton(text=button_text)])
-            except Exception as e:
-                print(f"Bepul kino qo'shishda xatolik: {e}")
-        
-        # Pullik kinolar
-        for movie in paid_movies:
-            try:
-                movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
-                button_text = f"💵 {title}"
-                if actor_name:
-                    button_text += f" - {actor_name}"
-                keyboard.append([KeyboardButton(text=button_text)])
-            except Exception as e:
-                print(f"Pullik kino qo'shishda xatolik: {e}")
-        
-        keyboard.append([KeyboardButton(text="🔙 Asosiy Menyu")])
-        
-        # Xabar matni
-        response_text = (
-            f"🎬 **Barcha Kontentlar**\n\n"
-            f"🆓 **Bepul kinolar:** {len(free_movies)} ta\n"
-            f"💵 **Pullik kinolar:** {len(paid_movies)} ta\n"
-            f"📊 **Jami:** {len(movies)} ta kino\n\n"
-        )
-        
-        # Agar kontentlar ko'p bo'lsa, qo'shimcha ma'lumot
-        if len(free_movies) > 0:
-            response_text += f"🆓 **Bepul kinolar:**\n"
-            for movie in free_movies[:3]:  # Faqat birinchi 3 tasi
-                movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
-                response_text += f"• {title}\n"
-            if len(free_movies) > 3:
-                response_text += f"• ... va yana {len(free_movies) - 3} ta\n"
-        
-        if len(paid_movies) > 0:
-            response_text += f"\n💵 **Pullik kinolar:**\n"
-            for movie in paid_movies[:3]:  # Faqat birinchi 3 tasi
-                movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
-                response_text += f"• {title} - {price:,} so'm\n"
-            if len(paid_movies) > 3:
-                response_text += f"• ... va yana {len(paid_movies) - 3} ta\n"
-        
-        response_text += f"\nKerakli kinoni tanlang:"
-        
+    # Barcha kinolarni olish (bepullar birinchi)
+    movies = db.get_all_movies_sorted()
+    
+    if not movies:
         await message.answer(
-            response_text,
-            reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-        )
-        
-    except Exception as e:
-        await message.answer(
-            f"❌ Kontentlarni yuklashda xatolik: {e}\n\n"
-            f"Iltimos, keyinroq urinib ko'ring.",
+            "❌ Hozircha hech qanday kontent mavjud emas.",
             reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
-        )   
-
-@dp.message(F.text == "🔍 Debug Kinolar")
-async def debug_movies(message: types.Message):
-    """Kino ma'lumotlarini debug qilish"""
-    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
-        movies = db.get_all_movies_sorted()
-        
-        debug_text = f"📊 DEBUG: Jami {len(movies)} ta kino\n\n"
-        
-        for i, movie in enumerate(movies[:5]):  # Faqat birinchi 5 tasi
-            try:
-                movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
-                debug_text += f"{i+1}. {title} - {price} so'm\n"
-            except Exception as e:
-                debug_text += f"{i+1}. XATOLIK: {e}\n"
-        
-        await message.answer(debug_text)        
+        )
+        return
+    
+    # Kontentlarni guruhlash
+    free_movies = [m for m in movies if m[5] == 0]  # price = 0
+    paid_movies = [m for m in movies if m[5] > 0]   # price > 0
+    
+    # Klaviatura yaratish
+    keyboard = []
+    
+    # Bepul kinolar
+    for movie in free_movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Asosiy Menyu")])
+    
+    await message.answer(
+        f"🎬 **Barcha Kontentlar**\n\n"
+        f"🆓 **Bepul kinolar:** {len(free_movies)} ta\n"
+        f"💵 **Pullik kinolar:** {len(paid_movies)} ta\n"
+        f"📊 **Jami:** {len(movies)} ta kino\n\n"
+        f"Kerakli kinoni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )    
     
 # ==============================================================================
 # -*-*- QIDIRUV HANDLERLARI -*-*-
@@ -2829,77 +2485,660 @@ async def back_from_payment(message: types.Message, state: FSMContext):
         "To'lov bekor qilindi.",
         reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
     ) 
-  
+
     
 # ==============================================================================
-# -*-*- YAGONA KATEGORIYA KO'RSATISH FUNKSIYASI -*-*-
+# -*-*- HOLLYWOOD ACTORLARINI KO'RSATISH -*-*-
+# ==============================================================================
+@dp.message(F.text == "🎭 Hollywood Kinolari")
+async def show_hollywood_movies(message: types.Message):
+    """Hollywood kinolarini to'g'ridan-to'g'ri ko'rsatish"""
+    print("DEBUG: Hollywood kategoriyasi bosildi - to'g'ridan-to'g'ri kinolar ko'rsatiladi")
+    
+    # Hollywood kategoriyasidagi barcha kinolarni olish
+    movies = db.get_movies_by_category("🎭 Hollywood")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha Hollywood kinolari mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    # Kinolarni narx bo'yicha guruhlash
+    free_movies = [m for m in movies if m[5] == 0]
+    paid_movies = [m for m in movies if m[5] > 0]
+    
+    keyboard = []
+    
+    # Bepul kinolar
+    for movie in free_movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    # Pullik kinolar
+    for movie in paid_movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+        button_text = f"💵 {title}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"🎭 **Hollywood Kinolari**\n\n"
+        f"🆓 Bepul: {len(free_movies)} ta\n"
+        f"💵 Pullik: {len(paid_movies)} ta\n"
+        f"📊 Jami: {len(movies)} ta kino\n\n"
+        f"Kerakli kinoni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+    
+        
+# ==============================================================================
+# -*-*- HIND ACTORLARINI KO'RSATISH -*-*-
+# ==============================================================================
+@dp.message(F.text == "🎬 Hind Filmlari")
+async def show_indian_movies(message: types.Message):
+    """Hind kinolarini to'g'ridan-to'g'ri ko'rsatish"""
+    print("DEBUG: Hind kategoriyasi bosildi - to'g'ridan-to'g'ri kinolar ko'rsatiladi")
+    
+    # Hind kategoriyasidagi barcha kinolarni olish
+    movies = db.get_movies_by_category("🎬 Hind")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha Hind kinolari mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    # Kinolarni narx bo'yicha guruhlash
+    free_movies = [m for m in movies if m[5] == 0]
+    paid_movies = [m for m in movies if m[5] > 0]
+    
+    keyboard = []
+    
+    # Bepul kinolar
+    for movie in free_movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    # Pullik kinolar
+    for movie in paid_movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+        button_text = f"💵 {title}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"🎬 **Hind Filmlari**\n\n"
+        f"🆓 Bepul: {len(free_movies)} ta\n"
+        f"💵 Pullik: {len(paid_movies)} ta\n"
+        f"📊 Jami: {len(movies)} ta kino\n\n"
+        f"Kerakli kinoni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "📺 Hind Seriallari")
+async def show_indian_series(message: types.Message):
+    """Hind seriallarini ko'rsatish"""
+    movies = db.get_movies_by_category("📺 Hind")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kontentlar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"📺 **Hind Seriallari**\n\n"
+        f"Jami: {len(movies)} ta kontent\n\n"
+        f"Kerakli serialni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "🎥 Rus Kinolari")
+async def show_russian_movies(message: types.Message):
+    """Rus kinolarini ko'rsatish"""
+    movies = db.get_movies_by_category("🎥 Rus")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kinolar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"🎥 **Rus Kinolari**\n\n"
+        f"Jami: {len(movies)} ta kino\n\n"
+        f"Kerakli kinoni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "📟 Rus Seriallari")
+async def show_russian_series(message: types.Message):
+    """Rus seriallarini ko'rsatish"""
+    movies = db.get_movies_by_category("📟 Rus")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kontentlar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"📟 **Rus Seriallari**\n\n"
+        f"Jami: {len(movies)} ta kontent\n\n"
+        f"Kerakli serialni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "🎞️ O'zbek Kinolari")
+async def show_uzbek_movies(message: types.Message):
+    """O'zbek kinolarini ko'rsatish"""
+    movies = db.get_movies_by_category("🎞️ O'zbek")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kinolar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"🎞️ **O'zbek Kinolari**\n\n"
+        f"Jami: {len(movies)} ta kino\n\n"
+        f"Kerakli kinoni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "📱 O'zbek Seriallari")
+async def show_uzbek_series(message: types.Message):
+    """O'zbek seriallarini ko'rsatish"""
+    movies = db.get_movies_by_category("📱 O'zbek")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kontentlar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"📱 **O'zbek Seriallari**\n\n"
+        f"Jami: {len(movies)} ta kontent\n\n"
+        f"Kerakli serialni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "🕌 Islomiy Kinolar")
+async def show_islamic_movies(message: types.Message):
+    """Islomiy kinolarni ko'rsatish"""
+    movies = db.get_movies_by_category("🕌 Islomiy")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kinolar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"🕌 **Islomiy Kinolar**\n\n"
+        f"Jami: {len(movies)} ta kino\n\n"
+        f"Kerakli kinoni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "📖 Islomiy Seriallar")
+async def show_islamic_series(message: types.Message):
+    """Islomiy seriallarni ko'rsatish"""
+    movies = db.get_movies_by_category("📖 Islomiy")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kontentlar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"📖 **Islomiy Seriallar**\n\n"
+        f"Jami: {len(movies)} ta kontent\n\n"
+        f"Kerakli serialni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "🇹🇷 Turk Kinolari")
+async def show_turkish_movies(message: types.Message):
+    """Turk kinolarini ko'rsatish"""
+    movies = db.get_movies_by_category("🇹🇷 Turk")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kinolar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"🇹🇷 **Turk Kinolari**\n\n"
+        f"Jami: {len(movies)} ta kino\n\n"
+        f"Kerakli kinoni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "📺 Turk Seriallari")
+async def show_turkish_series(message: types.Message):
+    """Turk seriallarini ko'rsatish"""
+    movies = db.get_movies_by_category("📺 Turk")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kontentlar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"📺 **Turk Seriallari**\n\n"
+        f"Jami: {len(movies)} ta kontent\n\n"
+        f"Kerakli serialni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "👶 Bolalar Kinolari")
+async def show_kids_movies(message: types.Message):
+    """Bolalar kinolarini ko'rsatish"""
+    movies = db.get_movies_by_category("👶 Bolalar")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kinolar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"👶 **Bolalar Kinolari**\n\n"
+        f"Jami: {len(movies)} ta kino\n\n"
+        f"Kerakli kinoni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "🐰 Bolalar Multfilmlari")
+async def show_kids_cartoons(message: types.Message):
+    """Bolalar multfilmlarini ko'rsatish"""
+    movies = db.get_movies_by_category("🐰 Bolalar")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda multfilmlar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"🐰 **Bolalar Multfilmlari**\n\n"
+        f"Jami: {len(movies)} ta multfilm\n\n"
+        f"Kerakli multfilmni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "🇰🇷 Koreys Kinolari")
+async def show_korean_movies(message: types.Message):
+    """Koreys kinolarini ko'rsatish"""
+    movies = db.get_movies_by_category("🇰🇷 Koreys")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kinolar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"🇰🇷 **Koreys Kinolari**\n\n"
+        f"Jami: {len(movies)} ta kino\n\n"
+        f"Kerakli kinoni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "📡 Koreys Seriallari")
+async def show_korean_series(message: types.Message):
+    """Koreys seriallarini ko'rsatish"""
+    movies = db.get_movies_by_category("📡 Koreys")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda kontentlar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"📡 **Koreys Seriallari**\n\n"
+        f"Jami: {len(movies)} ta kontent\n\n"
+        f"Kerakli serialni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+    
+@dp.message(F.text == "🎯 Qisqa Filmlar")
+async def show_short_films(message: types.Message):
+    """Qisqa filmlarni ko'rsatish"""
+    movies = db.get_movies_by_category("🎯 Qisqa")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda filmlar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"🎯 **Qisqa Filmlar**\n\n"
+        f"Jami: {len(movies)} ta film\n\n"
+        f"Kerakli filmni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+@dp.message(F.text == "🎤 Konsert Dasturlari")
+async def show_concert_programs(message: types.Message):
+    """Konsert dasturlarini ko'rsatish"""
+    movies = db.get_movies_by_category("🎤 Konsert")
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha bu bo'limda konsertlar mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    keyboard = []
+    for movie in movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"🎤 **Konsert Dasturlari**\n\n"
+        f"Jami: {len(movies)} ta konsert\n\n"
+        f"Kerakli konsertni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )   
+
+# ==============================================================================
+# -*-*- BO'LIMLAR ICHIDAGI KLAVIATURALAR -*-*-
 # ==============================================================================
 
-async def show_category_movies(message: types.Message, category_name: str, display_name: str):
-    """Bitta funksiya bilan barcha kategoriyalarni ko'rsatish"""
-    try:
-        # 1. To'g'ridan-to'g'ri kategoriya bo'yicha qidirish
-        movies = db.get_movies_by_category(category_name)
+def hollywood_movies_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🎬 Mel Gibson Kinolari"), KeyboardButton(text="💪 Arnold Schwarzenegger Kinolari")],
+            [KeyboardButton(text="🥊 Sylvester Stallone Kinolari"), KeyboardButton(text="🚗 Jason Statham Kinolari")],
+            [KeyboardButton(text="🐲 Jeki Chan Kinolari"), KeyboardButton(text="🥋 Skod Adkins Kinolari")],
+            [KeyboardButton(text="🎭 Denzil Washington Kinolari"), KeyboardButton(text="💥 Jan Clod Van Dam Kinolari")],
+            [KeyboardButton(text="👊 Brus lee Kinolari"), KeyboardButton(text="😂 Jim Cerry Kinolari")],
+            [KeyboardButton(text="🏴‍☠️ Jonni Depp Kinolari"), KeyboardButton(text="🥋 Jet Lee Kinolari")],
+            [KeyboardButton(text="👊 Mark Dacascos Kinolari"), KeyboardButton(text="🎬 Bred Pitt Kinolari")],
+            [KeyboardButton(text="🎭 Leonardo Dicaprio Kinolari"), KeyboardButton(text="📽️ Barcha Hollywood Kinolari")],
+            [KeyboardButton(text="🔙 Bo'limlarga qaytish")],
+        ],
+        resize_keyboard=True
+    )
+
+def indian_movies_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🤴 Shakruhkhan Kinolari"), KeyboardButton(text="🎬 Amirkhan Kinolari")],
+            [KeyboardButton(text="💪 Akshay Kumar Kinolari"), KeyboardButton(text="👑 Salmonkhan Kinolari")],
+            [KeyboardButton(text="🌟 SayfAlihon Kinolari"), KeyboardButton(text="🎭 Amitahbachchan Kinolari")],
+            [KeyboardButton(text="🔥 MethunChakraborty Kinolari"), KeyboardButton(text="🎥 Dharmendra Kinolari")],
+            [KeyboardButton(text="🎞️ Raj Kapur Kinolari"), KeyboardButton(text="🚗 Tezlik 1/2/3 Qismlar")],
+            [KeyboardButton(text="📀 Boshqa Hind Kinolari"), KeyboardButton(text="🔙 Bo'limlarga qaytish")],
+        ],
+        resize_keyboard=True
+    )
+
+def russian_movies_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="💼 Ishdagi Ishq"), KeyboardButton(text="🎭 Shurikning Sarguzashtlari")],
+            [KeyboardButton(text="👑 Ivan Vasilivich"), KeyboardButton(text="🔥 Gugurtga Ketib")],
+            [KeyboardButton(text="🕵️ If Qalqasing Mahbuzi"), KeyboardButton(text="👶 O'nta Neger Bolasi")],
+            [KeyboardButton(text="⚔️ Qo'lga Tushmas Qasoskorlar"), KeyboardButton(text="📀 Barcha Rus Kinolari")],
+            [KeyboardButton(text="🔙 Bo'limlarga qaytish")],
+        ],
+        resize_keyboard=True
+    )
+
+def russian_series_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🎮 Igra Seriali"), KeyboardButton(text="🚗 Bumer Seriali")],
+            [KeyboardButton(text="👥 Birgada Seriali"), KeyboardButton(text="📺 Barcha Rus Seriallari")],
+            [KeyboardButton(text="🔙 Bo'limlarga qaytish")],
+        ],
+        resize_keyboard=True
+    )
+
+def kids_movies_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🏠 Bola Uyda Yolg'iz 1"), KeyboardButton(text="🏠 Bola Uyda Yolg'iz 2")],
+            [KeyboardButton(text="🏠 Bola Uyda Yolg'iz 3"), KeyboardButton(text="✈️ Uchubchi Devid")],
+            [KeyboardButton(text="⚡ Garry Poter 1"), KeyboardButton(text="⚡ Garry Poter 2")],
+            [KeyboardButton(text="⚡ Garry Poter 3"), KeyboardButton(text="⚡ Garry Poter 4")],
+            [KeyboardButton(text="🎬 Barcha Bolalar Kinolari"), KeyboardButton(text="🔙 Bo'limlarga qaytish")],
+        ],
+        resize_keyboard=True
+    )
+
+def kids_cartoons_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="❄️ Muzlik Davri 1"), KeyboardButton(text="❄️ Muzlik Davri 2")],
+            [KeyboardButton(text="❄️ Muzlik Davri 3"), KeyboardButton(text="🐭 Tom & Jerry")],
+            [KeyboardButton(text="🐻 Bori va Quyon"), KeyboardButton(text="🐻 Ayiq va Masha")],
+            [KeyboardButton(text="🐼 Kungfu Panda 1"), KeyboardButton(text="🐼 Kungfu Panda 2")],
+            [KeyboardButton(text="🐼 Kungfu Panda 3"), KeyboardButton(text="🐼 Kungfu Panda 4")],
+            [KeyboardButton(text="🐎 Mustang"), KeyboardButton(text="📀 Barcha Multfilmlar")],
+            [KeyboardButton(text="🔙 Bo'limlarga qaytish")],
+        ],
+        resize_keyboard=True
+    )
+
+def islamic_series_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🕌 Uvays Karoniy"), KeyboardButton(text="👑 Umar ibn Hattob")],
+            [KeyboardButton(text="🌙 Olamga Nur Soshgan Oy"), KeyboardButton(text="📺 Barcha Islomiy Seriallar")],
+            [KeyboardButton(text="🔙 Bo'limlarga qaytish")],
+        ],
+        resize_keyboard=True
+    )
+
+def korean_series_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="❄️ Qish Sonatasi 1-20"), KeyboardButton(text="☀️ Yoz Ifori 1-20")],
+            [KeyboardButton(text="💖 Qalbim Chechagi 1-17"), KeyboardButton(text="🏦 Va Bank 1-20")],
+            [KeyboardButton(text="👑 Jumong 1-20"), KeyboardButton(text="⚓ Dengiz Hukumdori 1-20")],
+            [KeyboardButton(text="📺 Barcha Koreys Seriallari"), KeyboardButton(text="🔙 Bo'limlarga qaytish")],
+        ],
+        resize_keyboard=True
+    )
+
+def korean_movies_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🏙️ Jinoyatchilar Shahri 1"), KeyboardButton(text="🏙️ Jinoyatchilar Shahri 2")],
+            [KeyboardButton(text="🏙️ Jinoyatchilar Shahri 3"), KeyboardButton(text="🏙️ Jinoyatchilar Shahri 4")],
+            [KeyboardButton(text="🎬 Barcha Koreys Kinolari"), KeyboardButton(text="🔙 Bo'limlarga qaytish")],
+        ],
+        resize_keyboard=True
+    )
+
+def turkish_series_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="👑 Sulton Abdulhamidhon"), KeyboardButton(text="🐺 Qashqirlar Makoni")],
+            [KeyboardButton(text="📺 Barcha Turk Seriallari"), KeyboardButton(text="🔙 Bo'limlarga qaytish")],
+        ],
+        resize_keyboard=True
+    )
         
-        # 2. Agar topilmasa, qisman qidirish
-        if not movies:
-            all_movies = db.get_all_movies()
-            movies = [m for m in all_movies if category_name.split()[0] in m[3]]
-        
-        if not movies:
-            await message.answer(
-                f"❌ Hozircha {display_name} mavjud emas.",
-                reply_markup=get_category_keyboard("main")
-            )
-            return
-        
-        # Kinolarni narx bo'yicha guruhlash
-        free_movies = [m for m in movies if m[5] == 0]
-        paid_movies = [m for m in movies if m[5] > 0]
 
-        keyboard = []
-
-        # Bepul kinolar
-        for movie in free_movies:
-            try:
-                movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
-                button_text = f"🎬 {title}"
-                if actor_name and actor_name != "Barcha":
-                    button_text += f" - {actor_name}"
-                keyboard.append([KeyboardButton(text=button_text)])
-            except Exception as e:
-                print(f"Kino qo'shishda xatolik: {e}")
-                continue
-
-        # Pullik kinolar
-        for movie in paid_movies:
-            try:
-                movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
-                button_text = f"💵 {title}"
-                if actor_name and actor_name != "Barcha":
-                    button_text += f" - {actor_name}"
-                keyboard.append([KeyboardButton(text=button_text)])
-            except Exception as e:
-                print(f"Kino qo'shishda xatolik: {e}")
-                continue
-
-        keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
-
-        await message.answer(
-            f"**{display_name.title()}**\n\n"
-            f"🆓 Bepul: {len(free_movies)} ta\n"
-            f"💵 Pullik: {len(paid_movies)} ta\n"
-            f"📊 Jami: {len(movies)} ta\n\n"
-            f"Kerakli kontentni tanlang:",
-            reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-        )
-        
-    except Exception as e:
-        await message.answer(
-            f"❌ {display_name.title()}ni yuklashda xatolik.\n\n"
-            f"Iltimos, keyinroq urinib ko'ring.",
-            reply_markup=get_category_keyboard("main")
-        )   
 # ==============================================================================
 # -*-*- NAVIGATSIYA HANDLERLARI -*-*-
 # ==============================================================================
