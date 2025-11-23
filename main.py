@@ -1864,9 +1864,60 @@ async def process_phone(message: types.Message, state: FSMContext):
 # -*-*- ASOSIY MENYU HANDLERLARI -*-*-
 # ==============================================================================
 
+# ==============================================================================
+# -*-*- BARCHA KONTENTLAR HANDLERI (YANGILANGAN) -*-*-
+# ==============================================================================
+
 @dp.message(F.text == "🎬 Barcha Kontentlar")
 async def all_content(message: types.Message):
-    await message.answer("🎬 Barcha Kontentlar bo'limi. Bu yerda barcha mavjud kontentlarni ko'rishingiz mumkin.")
+    """Barcha kontentlarni ko'rsatish (pullik va bepul)"""
+    # Blok tekshiruvi
+    if await check_and_block(message):
+        return
+    
+    # Barcha kinolarni olish
+    movies = db.get_all_movies_sorted()
+    
+    if not movies:
+        await message.answer(
+            "❌ Hozircha hech qanday kontent mavjud emas.",
+            reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
+        )
+        return
+    
+    # Kontentlarni guruhlash
+    free_movies = [m for m in movies if m[5] == 0]  # price = 0
+    paid_movies = [m for m in movies if m[5] > 0]   # price > 0
+    
+    # Klaviatura yaratish
+    keyboard = []
+    
+    # Bepul kinolar
+    for movie in free_movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    # Pullik kinolar
+    for movie in paid_movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+        button_text = f"💵 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Asosiy Menyu")])
+    
+    await message.answer(
+        f"🎬 **Barcha Kontentlar**\n\n"
+        f"🆓 **Bepul kinolar:** {len(free_movies)} ta\n"
+        f"💵 **Pullik kinolar:** {len(paid_movies)} ta\n"
+        f"📊 **Jami:** {len(movies)} ta kino\n\n"
+        f"Kerakli kinoni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
 
 @dp.message(F.text == "📁 Bo'limlar")
 async def sections(message: types.Message):
