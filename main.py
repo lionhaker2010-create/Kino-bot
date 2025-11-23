@@ -489,13 +489,35 @@ def admin_advanced_keyboard():
         resize_keyboard=True
     )
     
+# -*-*- ICHKI KATEGORIYA TANLASH -*-*-
+@dp.message(ContentManagementState.waiting_sub_category)
+async def process_sub_category(message: types.Message, state: FSMContext):
+    print(f"DEBUG: Ichki kategoriya tanlandi: '{message.text}'")
+    
+    if message.text == "🔙 Orqaga":
+        await message.answer("Asosiy kategoriyani tanlang:", reply_markup=get_category_keyboard("main"))
+        await state.set_state(ContentManagementState.waiting_main_category)
+        return
+        
+    # ICHKI KATEGORIYA = AKTYOR NOMI
+    await state.update_data(sub_category=message.text, actor=message.text)
+    
+    await message.answer(
+        "💵 Kino narxini kiriting (so'mda):\n0 - Bepul\n30000 - Yuklab olish uchun",
+        reply_markup=ReplyKeyboardRemove()  # Klaviaturani olib tashlaymiz
+    )
+    await state.set_state(ContentManagementState.waiting_movie_price)
+
 # ==============================================================================
 # -*-*- HOLATNI TOZALASH -*-*-
 # ==============================================================================
+
 @dp.message(F.text == "🔄 Holatni tozalash")
-async def clear_state(message: types.Message, state: FSMContext):
-    await state.clear()
-    await message.answer("✅ Holat tozalandi. Qaytadan boshlang.", reply_markup=admin_keyboard())    
+async def clear_state_admin(message: types.Message, state: FSMContext):
+    """Admin uchun holatni tozalash"""
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        await state.clear()
+        await message.answer("✅ Holat tozalandi. Qaytadan boshlang.", reply_markup=admin_keyboard())   
     
 # -*-*- PREMIUM BOSHQARUV KLAVIATURASI -*-*-
 def premium_management_keyboard():
