@@ -2685,7 +2685,7 @@ async def show_indian_series(message: types.Message):
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
 
-@@dp.message(F.text == "🎥 Rus Kinolari")
+@dp.message(F.text == "🎥 Rus Kinolari")
 async def show_russian_movies(message: types.Message):
     movies = db.get_movies_by_main_category("🎥 Rus Kinolari")  # YANGI
     
