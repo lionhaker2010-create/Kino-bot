@@ -754,7 +754,22 @@ async def buy_for_download(message: types.Message, state: FSMContext):
 async def premium_for_download(message: types.Message):
     """Yuklab olish uchun premium obuna"""
     await premium_subscription(message)
-        
+  
+# ==============================================================================
+# -*-*- KONTENTLAR RO'YXATI -*-*-
+# ==============================================================================
+# -*-*- KONTENTLAR RO'YXATI -*-*-
+@dp.message(F.text == "📁 Kontentlar Boshqaruvi")
+async def content_list_management(message: types.Message):
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        await message.answer(
+            "📁 **Kontentlar Boshqaruvi**\n\n"
+            "Bu yerda barcha kontentlarni ko'rishingiz va boshqarishingiz mumkin:",
+            reply_markup=content_management_keyboard()
+        )
+    else:
+        await message.answer("Sizga ruxsat yo'q!")
+               
 # ==============================================================================
 # -*-*- KONTENT BOSHQARUV HANDLERLARI -*-*-
 # ==============================================================================
@@ -4151,7 +4166,47 @@ async def list_all_movies(message: types.Message):
         else:
             await message.answer(response)
     else:
-        await message.answer("Sizga ruxsat yo'q!")     
+        await message.answer("Sizga ruxsat yo'q!")   
+
+# ==============================================================================
+# -*-*- BARCHA KINOLARNI TEKSHIRISH -*-*-
+# ==============================================================================
+@dp.message(F.text == "🔍 Kinolarni tekshirish")
+async def check_all_movies(message: types.Message):
+    """Barcha kinolarni ko'rsatish (faqat admin uchun)"""
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        try:
+            all_movies = db.get_all_movies()
+            
+            if not all_movies:
+                await message.answer("❌ Hozircha hech qanday kino mavjud emas.")
+                return
+            
+            response = "🎬 **BARCHA KINOLAR:**\n\n"
+            
+            for i, movie in enumerate(all_movies, 1):
+                movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+                
+                response += f"🆔 {movie_id}. {title}\n"
+                response += f"   📁 Kategoriya: {category}\n"
+                response += f"   🎭 Aktyor: {actor_name}\n"
+                response += f"   💵 Narx: {price} so'm\n"
+                response += "   ───────────────────\n"
+                
+                if i % 5 == 0:  # Har 5 ta kinodan keyin yangi xabar
+                    await message.answer(response)
+                    response = ""
+                    await asyncio.sleep(1)
+            
+            if response:
+                await message.answer(response)
+                
+            await message.answer(f"📊 Jami: {len(all_movies)} ta kino")
+            
+        except Exception as e:
+            await message.answer(f"❌ Xatolik: {e}")
+    else:
+        await message.answer("Sizga ruxsat yo'q!")        
 
 @dp.message(F.text == "💰 Pullik Hizmatlar Statistika")
 async def premium_stats(message: types.Message):
