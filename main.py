@@ -2568,8 +2568,8 @@ async def back_from_payment(message: types.Message, state: FSMContext):
 # ==============================================================================
 @dp.message(F.text == "🎭 Hollywood Kinolari")
 async def show_hollywood_movies(message: types.Message):
-    """Hollywood kinolarini to'g'ridan-to'g'ri ko'rsatish"""
-    print("DEBUG: Hollywood kategoriyasi bosildi - to'g'ridan-to'g'ri kinolar ko'rsatiladi")
+    movies = db.get_movies_by_main_category("🎭 Hollywood Kinolari")  # YANGI
+    # ... qolgan kod
     
     # Hollywood kategoriyasidagi barcha kinolarni olish
     movies = db.get_movies_by_category("🎭 Hollywood")
@@ -2616,8 +2616,7 @@ async def show_hollywood_movies(message: types.Message):
 # ==============================================================================
 @dp.message(F.text == "🎬 Hind Filmlari")
 async def show_indian_movies(message: types.Message):
-    """Hind kinolarini to'g'ridan-to'g'ri ko'rsatish"""
-    print("DEBUG: Hind kategoriyasi bosildi - to'g'ridan-to'g'ri kinolar ko'rsatiladi")
+    movies = db.get_movies_by_main_category("🎬 Hind Filmlari")  # YANGI
     
     # Hind kategoriyasidagi barcha kinolarni olish
     movies = db.get_movies_by_category("🎬 Hind")
@@ -2660,8 +2659,7 @@ async def show_indian_movies(message: types.Message):
 
 @dp.message(F.text == "📺 Hind Seriallari")
 async def show_indian_series(message: types.Message):
-    """Hind seriallarini ko'rsatish"""
-    movies = db.get_movies_by_category("📺 Hind")
+    movies = db.get_movies_by_main_category("📺 Hind Seriallari")  # YANGI
     
     if not movies:
         await message.answer(
@@ -2687,10 +2685,9 @@ async def show_indian_series(message: types.Message):
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
 
-@dp.message(F.text == "🎥 Rus Kinolari")
+@@dp.message(F.text == "🎥 Rus Kinolari")
 async def show_russian_movies(message: types.Message):
-    """Rus kinolarini ko'rsatish"""
-    movies = db.get_movies_by_category("🎥 Rus")
+    movies = db.get_movies_by_main_category("🎥 Rus Kinolari")  # YANGI
     
     if not movies:
         await message.answer(
@@ -2715,11 +2712,9 @@ async def show_russian_movies(message: types.Message):
         f"Kerakli kinoni tanlang:",
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
-
 @dp.message(F.text == "📟 Rus Seriallari")
 async def show_russian_series(message: types.Message):
-    """Rus seriallarini ko'rsatish"""
-    movies = db.get_movies_by_category("📟 Rus")
+    movies = db.get_movies_by_main_category("📟 Rus Seriallari")  # YANGI
     
     if not movies:
         await message.answer(
@@ -2747,8 +2742,7 @@ async def show_russian_series(message: types.Message):
 
 @dp.message(F.text == "🎞️ O'zbek Kinolari")
 async def show_uzbek_movies(message: types.Message):
-    """O'zbek kinolarini ko'rsatish"""
-    movies = db.get_movies_by_category("🎞️ O'zbek")
+    movies = db.get_movies_by_main_category("🎞️ O'zbek Kinolari")  # YANGI
     
     if not movies:
         await message.answer(
@@ -2776,8 +2770,7 @@ async def show_uzbek_movies(message: types.Message):
 
 @dp.message(F.text == "📱 O'zbek Seriallari")
 async def show_uzbek_series(message: types.Message):
-    """O'zbek seriallarini ko'rsatish"""
-    movies = db.get_movies_by_category("📱 O'zbek")
+    movies = db.get_movies_by_main_category("📱 O'zbek Seriallari")  # YANGI
     
     if not movies:
         await message.answer(
@@ -2805,8 +2798,7 @@ async def show_uzbek_series(message: types.Message):
 
 @dp.message(F.text == "🕌 Islomiy Kinolar")
 async def show_islamic_movies(message: types.Message):
-    """Islomiy kinolarni ko'rsatish"""
-    movies = db.get_movies_by_category("🕌 Islomiy")
+    movies = db.get_movies_by_main_category("🕌 Islomiy Kinolar")  # YANGI
     
     if not movies:
         await message.answer(
@@ -2834,8 +2826,7 @@ async def show_islamic_movies(message: types.Message):
 
 @dp.message(F.text == "📖 Islomiy Seriallar")
 async def show_islamic_series(message: types.Message):
-    """Islomiy seriallarni ko'rsatish"""
-    movies = db.get_movies_by_category("📖 Islomiy")
+    movies = db.get_movies_by_main_category("📖 Islomiy Seriallar")  # YANGI
     
     if not movies:
         await message.answer(
@@ -2863,8 +2854,7 @@ async def show_islamic_series(message: types.Message):
 
 @dp.message(F.text == "🇹🇷 Turk Kinolari")
 async def show_turkish_movies(message: types.Message):
-    """Turk kinolarini ko'rsatish"""
-    movies = db.get_movies_by_category("🇹🇷 Turk")
+    movies = db.get_movies_by_main_category("🇹🇷 Turk Kinolari")  # YANGI
     
     if not movies:
         await message.answer(
@@ -2892,8 +2882,7 @@ async def show_turkish_movies(message: types.Message):
 
 @dp.message(F.text == "📺 Turk Seriallari")
 async def show_turkish_series(message: types.Message):
-    """Turk seriallarini ko'rsatish"""
-    movies = db.get_movies_by_category("📺 Turk")
+    movies = db.get_movies_by_main_category("📺 Turk Seriallari")  # YANGI
     
     if not movies:
         await message.answer(
@@ -2921,8 +2910,7 @@ async def show_turkish_series(message: types.Message):
 
 @dp.message(F.text == "👶 Bolalar Kinolari")
 async def show_kids_movies(message: types.Message):
-    """Bolalar kinolarini ko'rsatish"""
-    movies = db.get_movies_by_category("👶 Bolalar")
+    movies = db.get_movies_by_main_category("👶 Bolalar Kinolari")  # YANGI
     
     if not movies:
         await message.answer(
@@ -2950,8 +2938,7 @@ async def show_kids_movies(message: types.Message):
 
 @dp.message(F.text == "🐰 Bolalar Multfilmlari")
 async def show_kids_cartoons(message: types.Message):
-    """Bolalar multfilmlarini ko'rsatish"""
-    movies = db.get_movies_by_category("🐰 Bolalar")
+    movies = db.get_movies_by_main_category("🐰 Bolalar Multfilmlari")  # YANGI
     
     if not movies:
         await message.answer(
@@ -2979,8 +2966,7 @@ async def show_kids_cartoons(message: types.Message):
 
 @dp.message(F.text == "🇰🇷 Koreys Kinolari")
 async def show_korean_movies(message: types.Message):
-    """Koreys kinolarini ko'rsatish"""
-    movies = db.get_movies_by_category("🇰🇷 Koreys")
+    movies = db.get_movies_by_main_category("🇰🇷 Koreys Kinolari")  # YANGI
     
     if not movies:
         await message.answer(
@@ -3008,8 +2994,7 @@ async def show_korean_movies(message: types.Message):
 
 @dp.message(F.text == "📡 Koreys Seriallari")
 async def show_korean_series(message: types.Message):
-    """Koreys seriallarini ko'rsatish"""
-    movies = db.get_movies_by_category("📡 Koreys")
+    movies = db.get_movies_by_main_category("📡 Koreys Seriallari")  # YANGI
     
     if not movies:
         await message.answer(
@@ -3037,8 +3022,7 @@ async def show_korean_series(message: types.Message):
     
 @dp.message(F.text == "🎯 Qisqa Filmlar")
 async def show_short_films(message: types.Message):
-    """Qisqa filmlarni ko'rsatish"""
-    movies = db.get_movies_by_category("🎯 Qisqa")
+    movies = db.get_movies_by_main_category("🎯 Qisqa Filmlar")  # YANGI
     
     if not movies:
         await message.answer(
@@ -3066,8 +3050,7 @@ async def show_short_films(message: types.Message):
 
 @dp.message(F.text == "🎤 Konsert Dasturlari")
 async def show_concert_programs(message: types.Message):
-    """Konsert dasturlarini ko'rsatish"""
-    movies = db.get_movies_by_category("🎤 Konsert")
+    movies = db.get_movies_by_main_category("🎤 Konsert Dasturlari")  # YANGI
     
     if not movies:
         await message.answer(
@@ -3092,6 +3075,22 @@ async def show_concert_programs(message: types.Message):
         f"Kerakli konsertni tanlang:",
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )   
+    
+def debug_category_movies(self):
+    """Barcha kategoriyalar va ularning kinolarini ko'rsatish (debug uchun)"""
+    with sqlite3.connect(self.db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT DISTINCT category FROM movies')
+        categories = cursor.fetchall()
+        
+        result = {}
+        for category in categories:
+            cat_name = category[0]
+            cursor.execute('SELECT COUNT(*) FROM movies WHERE category = ?', (cat_name,))
+            count = cursor.fetchone()[0]
+            result[cat_name] = count
+            
+        return result    
 
 # ==============================================================================
 # -*-*- BO'LIMLAR ICHIDAGI KLAVIATURALAR -*-*-

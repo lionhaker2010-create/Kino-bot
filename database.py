@@ -168,6 +168,72 @@ class Database:
             ''')
             conn.commit()
             
+    def get_all_movies_by_main_category(self, main_category):
+        """Asosiy kategoriya bo'yicha barcha kinolarni olish"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Kategoriya mapping
+            category_mapping = {
+                "📡 Koreys Seriallari": "📡 Koreys",
+                "🎭 Hollywood Kinolari": "🎭 Hollywood",
+                "🎬 Hind Filmlari": "🎬 Hind", 
+                "📺 Hind Seriallari": "📺 Hind",
+                "🎥 Rus Kinolari": "🎥 Rus",
+                "📟 Rus Seriallari": "📟 Rus",
+                "🎞️ O'zbek Kinolari": "🎞️ O'zbek",
+                "📱 O'zbek Seriallari": "📱 O'zbek", 
+                "🕌 Islomiy Kinolar": "🕌 Islomiy",
+                "📖 Islomiy Seriallar": "📖 Islomiy",
+                "🇹🇷 Turk Kinolari": "🇹🇷 Turk",
+                "📺 Turk Seriallari": "📺 Turk",
+                "👶 Bolalar Kinolari": "👶 Bolalar",
+                "🐰 Bolalar Multfilmlari": "🐰 Bolalar",
+                "🇰🇷 Koreys Kinolari": "🇰🇷 Koreys",
+                "🎯 Qisqa Filmlar": "🎯 Qisqa",
+                "🎤 Konsert Dasturlari": "🎤 Konsert"
+            }
+            
+            search_category = category_mapping.get(main_category, main_category)
+            
+            cursor.execute('''
+                SELECT movie_id, title, description, category, file_id, price, 
+                       is_premium, actor_name, banner_file_id, created_at, added_by 
+                FROM movies 
+                WHERE category LIKE ? OR category = ?
+                ORDER BY created_at DESC
+            ''', (f'{search_category}%', main_category))
+            return cursor.fetchall()        
+            
+            
+    def get_movies_by_main_category(self, main_category):
+        """Asosiy kategoriya bo'yicha barcha kinolarni olish (universal)"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Barcha mumkin bo'lgan kategoriya variantlari
+            category_variants = [
+                main_category,
+                f"{main_category} - ",
+                main_category.replace("Seriallari", "Serial").replace("Kinolari", "Kino"),
+                main_category.replace("📡", "").replace("🎭", "").replace("🎬", "").strip()
+            ]
+            
+            # LIKE so'rovi uchun patternlar
+            patterns = [f"{variant}%" for variant in category_variants if variant]
+            
+            # Dinamik so'rov yaratish
+            placeholders = ','.join(['?'] * len(patterns))
+            query = f'''
+                SELECT movie_id, title, description, category, file_id, price, 
+                       is_premium, actor_name, banner_file_id, created_at, added_by 
+                FROM movies 
+                WHERE category LIKE ANY({placeholders}) OR category = ?
+                ORDER BY created_at DESC
+            '''
+            
+            cursor.execute(query, patterns + [main_category])
+            return cursor.fetchall()        
     # ==============================================================================
     # -*-*- FOYDALANUVCHI SOTIB OLGANLAR JADVALI -*-*-
     # ==============================================================================
