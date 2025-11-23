@@ -3009,7 +3009,8 @@ async def show_korean_movies(message: types.Message):
 @dp.message(F.text == "📡 Koreys Seriallari")
 async def show_korean_series(message: types.Message):
     """Koreys seriallarini ko'rsatish"""
-    movies = db.get_movies_by_category("📡 Koreys")
+    # TO'G'RILANGAN KOD:
+    movies = db.get_movies_by_category("📡 Koreys Seriallari")
     
     if not movies:
         await message.answer(
@@ -3018,9 +3019,10 @@ async def show_korean_series(message: types.Message):
         )
         return
     
+    # Qolgan kod o'zgarmaydi...
     keyboard = []
     for movie in movies:
-        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
         button_text = f"🎬 {title}"
         if actor_name:
             button_text += f" - {actor_name}"
