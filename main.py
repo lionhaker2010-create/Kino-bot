@@ -1169,51 +1169,127 @@ async def process_unblock_confirmation(message: types.Message, state: FSMContext
     await state.clear()  
 
 # ==============================================================================
-# -*-*- BARCHA KONTENTLAR HANDLERI -*-*-
+# -*-*- BARCHA KONTENTLAR HANDLERI (TUZATILGAN) -*-*-
 # ==============================================================================
 
 @dp.message(F.text == "🎬 Barcha Kontentlar")
-async def all_content(message: types.Message):
-    """Barcha kontentlarni ko'rsatish"""
+async def all_content_fixed(message: types.Message):
+    """Barcha kontentlarni ko'rsatish - TUZATILGAN VERSIYA"""
     # Blok tekshiruvi
     if await check_and_block(message):
         return
     
-    # Barcha kinolarni olish (bepullar birinchi)
-    movies = db.get_all_movies_sorted()
-    
-    if not movies:
-        await message.answer(
-            "❌ Hozircha hech qanday kontent mavjud emas.",
-            reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
+    try:
+        # Barcha kinolarni olish
+        movies = db.get_all_movies_sorted()
+        
+        if not movies:
+            await message.answer(
+                "❌ Hozircha hech qanday kontent mavjud emas.",
+                reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
+            )
+            return
+        
+        # Kontentlarni to'g'ri guruhlash
+        free_movies = []
+        paid_movies = []
+        
+        for movie in movies:
+            try:
+                # TO'G'RI INDEKSLAR - 11 ta ustun mavjud
+                movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+                
+                if price == 0:
+                    free_movies.append(movie)
+                else:
+                    paid_movies.append(movie)
+                    
+            except Exception as e:
+                print(f"Kino ma'lumotlarini olishda xatolik: {e}")
+                continue
+        
+        # Klaviatura yaratish
+        keyboard = []
+        
+        # Bepul kinolar
+        for movie in free_movies:
+            try:
+                movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+                button_text = f"🎬 {title}"
+                if actor_name:
+                    button_text += f" - {actor_name}"
+                keyboard.append([KeyboardButton(text=button_text)])
+            except Exception as e:
+                print(f"Bepul kino qo'shishda xatolik: {e}")
+        
+        # Pullik kinolar
+        for movie in paid_movies:
+            try:
+                movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+                button_text = f"💵 {title}"
+                if actor_name:
+                    button_text += f" - {actor_name}"
+                keyboard.append([KeyboardButton(text=button_text)])
+            except Exception as e:
+                print(f"Pullik kino qo'shishda xatolik: {e}")
+        
+        keyboard.append([KeyboardButton(text="🔙 Asosiy Menyu")])
+        
+        # Xabar matni
+        response_text = (
+            f"🎬 **Barcha Kontentlar**\n\n"
+            f"🆓 **Bepul kinolar:** {len(free_movies)} ta\n"
+            f"💵 **Pullik kinolar:** {len(paid_movies)} ta\n"
+            f"📊 **Jami:** {len(movies)} ta kino\n\n"
         )
-        return
-    
-    # Kontentlarni guruhlash
-    free_movies = [m for m in movies if m[5] == 0]  # price = 0
-    paid_movies = [m for m in movies if m[5] > 0]   # price > 0
-    
-    # Klaviatura yaratish
-    keyboard = []
-    
-    # Bepul kinolar
-    for movie in free_movies:
-        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
-        button_text = f"🎬 {title}"
-        if actor_name:
-            button_text += f" - {actor_name}"
-        keyboard.append([KeyboardButton(text=button_text)])
-    
-    keyboard.append([KeyboardButton(text="🔙 Asosiy Menyu")])
-    
-    await message.answer(
-        f"🎬 **Barcha Kontentlar**\n\n"
-        f"🆓 **Bepul kinolar:** {len(free_movies)} ta\n"
-        f"💵 **Pullik kinolar:** {len(paid_movies)} ta\n"
-        f"📊 **Jami:** {len(movies)} ta kino\n\n"
-        f"Kerakli kinoni tanlang:",
-        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-    )    
+        
+        # Agar kontentlar ko'p bo'lsa, qo'shimcha ma'lumot
+        if len(free_movies) > 0:
+            response_text += f"🆓 **Bepul kinolar:**\n"
+            for movie in free_movies[:3]:  # Faqat birinchi 3 tasi
+                movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+                response_text += f"• {title}\n"
+            if len(free_movies) > 3:
+                response_text += f"• ... va yana {len(free_movies) - 3} ta\n"
+        
+        if len(paid_movies) > 0:
+            response_text += f"\n💵 **Pullik kinolar:**\n"
+            for movie in paid_movies[:3]:  # Faqat birinchi 3 tasi
+                movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+                response_text += f"• {title} - {price:,} so'm\n"
+            if len(paid_movies) > 3:
+                response_text += f"• ... va yana {len(paid_movies) - 3} ta\n"
+        
+        response_text += f"\nKerakli kinoni tanlang:"
+        
+        await message.answer(
+            response_text,
+            reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+        )
+        
+    except Exception as e:
+        await message.answer(
+            f"❌ Kontentlarni yuklashda xatolik: {e}\n\n"
+            f"Iltimos, keyinroq urinib ko'ring.",
+            reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
+        )   
+
+@dp.message(F.text == "🔍 Debug Kinolar")
+async def debug_movies(message: types.Message):
+    """Kino ma'lumotlarini debug qilish"""
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        movies = db.get_all_movies_sorted()
+        
+        debug_text = f"📊 DEBUG: Jami {len(movies)} ta kino\n\n"
+        
+        for i, movie in enumerate(movies[:5]):  # Faqat birinchi 5 tasi
+            try:
+                movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+                debug_text += f"{i+1}. {title} - {price} so'm\n"
+            except Exception as e:
+                debug_text += f"{i+1}. XATOLIK: {e}\n"
+        
+        await message.answer(debug_text)        
     
 # ==============================================================================
 # -*-*- QIDIRUV HANDLERLARI -*-*-
