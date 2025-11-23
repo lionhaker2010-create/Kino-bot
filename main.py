@@ -488,25 +488,6 @@ def admin_advanced_keyboard():
         ],
         resize_keyboard=True
     )
-    
-# -*-*- ICHKI KATEGORIYA TANLASH -*-*-
-@dp.message(ContentManagementState.waiting_sub_category)
-async def process_sub_category(message: types.Message, state: FSMContext):
-    print(f"DEBUG: Ichki kategoriya tanlandi: '{message.text}'")
-    
-    if message.text == "🔙 Orqaga":
-        await message.answer("Asosiy kategoriyani tanlang:", reply_markup=get_category_keyboard("main"))
-        await state.set_state(ContentManagementState.waiting_main_category)
-        return
-        
-    # ICHKI KATEGORIYA = AKTYOR NOMI
-    await state.update_data(sub_category=message.text, actor=message.text)
-    
-    await message.answer(
-        "💵 Kino narxini kiriting (so'mda):\n0 - Bepul\n30000 - Yuklab olish uchun",
-        reply_markup=ReplyKeyboardRemove()  # Klaviaturani olib tashlaymiz
-    )
-    await state.set_state(ContentManagementState.waiting_movie_price)
 
 # ==============================================================================
 # -*-*- HOLATNI TOZALASH -*-*-
@@ -1092,22 +1073,64 @@ async def process_main_category(message: types.Message, state: FSMContext):
 
 # -*-*- ICHKI KATEGORIYA TANLASH -*-*-
 @dp.message(ContentManagementState.waiting_sub_category)
-async def process_sub_category(message: types.Message, state: FSMContext):
-    print(f"DEBUG: Ichki kategoriya tanlandi: '{message.text}'")
+async def process_sub_category_fixed(message: types.Message, state: FSMContext):
+    """Admin uchun ichki kategoriya tanlash - TO'LIQ QAYTA YOZILGAN"""
+    print(f"🚨 DEBUG: process_sub_category_fixed ishga tushdi: '{message.text}'")
     
-    if message.text == "🔙 Orqaga":
-        await message.answer("Asosiy kategoriyani tanlang:", reply_markup=get_category_keyboard("main"))
-        await state.set_state(ContentManagementState.waiting_main_category)
-        return
+    try:
+        # 1. Orqaga tugmasi
+        if message.text == "🔙 Orqaga":
+            await message.answer("Asosiy kategoriyani tanlang:", reply_markup=get_category_keyboard("main"))
+            await state.set_state(ContentManagementState.waiting_main_category)
+            return
         
-    # ICHKI KATEGORIYA = AKTYOR NOMI
-    await state.update_data(sub_category=message.text, actor=message.text)
-    
-    await message.answer(
-        "💵 Kino narxini kiriting (so'mda):\n0 - Bepul\n30000 - Yuklab olish uchun",
-        reply_markup=ReplyKeyboardRemove()  # Klaviaturani olib tashlaymiz
-    )
-    await state.set_state(ContentManagementState.waiting_movie_price)
+        # 2. State ma'lumotlarini olish
+        data = await state.get_data()
+        print(f"🚨 DEBUG: State data: {data}")
+        
+        # 3. Aktyor nomini saqlash
+        actor_name = message.text
+        await state.update_data(
+            sub_category=actor_name, 
+            actor=actor_name
+        )
+        
+        print(f"🚨 DEBUG: Aktyor saqlandi: {actor_name}")
+        
+        # 4. Narx so'rash
+        await message.answer(
+            "💵 **Kino narxini kiriting (so'mda):**\n\n"
+            "0 - Bepul kontent\n"
+            "30000 - Pullik kontent (yuklab olish uchun)",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        
+        # 5. Yangi holatga o'tish
+        await state.set_state(ContentManagementState.waiting_movie_price)
+        print(f"🚨 DEBUG: Yangi holat: {await state.get_state()}")
+        
+    except Exception as e:
+        print(f"🚨 DEBUG: Xatolik: {e}")
+        await message.answer(
+            f"❌ **Xatolik yuz berdi!**\n\n"
+            f"Xatolik: {e}\n\n"
+            f"🔄 Iltimos, 'Holatni tozalash' tugmasini bosing va qayta urinib ko'ring.",
+            reply_markup=admin_keyboard()
+        )
+        await state.clear()
+
+# 3. KEYIN test funksiyasini qo'shing (ixtiyoriy):
+@dp.message(F.text == "🔍 Test Sub Category")
+async def test_sub_category(message: types.Message, state: FSMContext):
+    """Test uchun sub category holatini yaratish"""
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        await state.set_state(ContentManagementState.waiting_sub_category)
+        await state.update_data(main_category="🎭 Hollywood Kinolari")
+        await message.answer(
+            "🧪 **Test rejimida**\n\n"
+            "Aktyor tanlang:",
+            reply_markup=get_category_keyboard("sub", "🎭 Hollywood Kinolari")
+        )
     
 # -*-*- KINO NARXI QABUL QILISH -*-*-
 @dp.message(ContentManagementState.waiting_movie_price)
