@@ -4,7 +4,7 @@ import time
 import requests
 import os
 
-app = Flask(__name__)
+app = Flask('keep_alive')
 
 @app.route('/')
 def home():
@@ -19,12 +19,22 @@ def ping():
     return "pong"
 
 def run():
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    try:
+        port = int(os.environ.get("PORT", 10000))
+        app.run(host='0.0.0.0', port=port, debug=False)
+    except OSError as e:
+        if "Address already in use" in str(e):
+            print("✅ Server already running on port 10000")
+        else:
+            print(f"❌ Server error: {e}")
 
 def keep_alive():
-    server = Thread(target=run)
-    server.start()
+    try:
+        server = Thread(target=run)
+        server.start()
+        print("✅ Keep-alive server started!")
+    except Exception as e:
+        print(f"❌ Keep-alive error: {e}")
 
 def start_pinging():
     print("🔄 Auto-ping service started!")
