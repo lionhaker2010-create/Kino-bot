@@ -264,8 +264,9 @@ def admin_advanced_keyboard():
             [KeyboardButton(text="🔍 Kinolarni tekshirish"), KeyboardButton(text="📋 Kinolar ro'yxati")],
             [KeyboardButton(text="🕒 Vaqtni tekshirish"), KeyboardButton(text="🔍 AutoMessager Holati")],
             [KeyboardButton(text="🔄 AutoMessager Qayta Ishga Tushirish"), KeyboardButton(text="🧪 Test xabar")],
-            [KeyboardButton(text="🚫 Bloklash"), KeyboardButton(text="✅ Blokdan ochish")],
-            [KeyboardButton(text="🔄 Holatni tozalash"), KeyboardButton(text="🔙 Asosiy Menyu")],
+            [KeyboardButton(text="🔍 Debug Kategoriyalar"), KeyboardButton(text="🚫 Bloklash")],  # <- YANGI
+            [KeyboardButton(text="✅ Blokdan ochish"), KeyboardButton(text="🔄 Holatni tozalash")],
+            [KeyboardButton(text="🔙 Asosiy Menyu")],
         ],
         resize_keyboard=True
     )
@@ -4302,6 +4303,36 @@ async def view_payments(message: types.Message):
             response = "✅ Kutilayotgan to'lovlar yo'q"
         
         await message.answer(response)
+
+# ==============================================================================
+# -*-*- DEBUG HANDLERLARI -*-*-
+# ==============================================================================
+
+@dp.message(F.text == "🔍 Debug Kategoriyalar")
+async def debug_categories_handler(message: types.Message):
+    """Kategoriya ma'lumotlarini tekshirish"""
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        try:
+            # 1. Bazadagi barcha kategoriya nomlari
+            debug_info = db.debug_category_movies()
+            response = "📊 **BAZADAGI KATEGORIYALAR:**\n\n"
+            for category, count in debug_info.items():
+                response += f"• '{category}': {count} ta\n"
+            
+            # 2. "📡 Koreys Seriallari" bo'yicha qidirish natijalari
+            movies = db.get_all_movies_by_main_category("📡 Koreys Seriallari")
+            response += f"\n🔍 **'📡 Koreys Seriallari' qidiruvi:** {len(movies)} ta topildi\n"
+            
+            for movie in movies[:3]:  # Faqat birinchi 3 tasi
+                movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+                response += f"  - '{title}' (kategoriya: '{category}')\n"
+            
+            await message.answer(response)
+            
+        except Exception as e:
+            await message.answer(f"❌ Debug xatosi: {e}")
+    else:
+        await message.answer("Sizga ruxsat yo'q!")
 
 # ==============================================================================
 # -*-*- KINOLAR RO'YXATI -*-*-
