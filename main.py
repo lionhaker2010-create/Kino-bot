@@ -4738,8 +4738,11 @@ async def main():
     
     # 🔥 FAQAT BITTA KEEP ALIVE SERVER
     try:
-        from keep_alive import keep_alive
-        keep_alive()
+        from keep_alive import keep_alive, start_background_ping
+        
+        keep_alive()  # Server ni ishga tushirish
+        start_background_ping()  # Ping ni ishga tushirish
+        
     except Exception as e:
         print(f"❌ Keep-alive error: {e}")
     

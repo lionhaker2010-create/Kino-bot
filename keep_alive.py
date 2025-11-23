@@ -18,7 +18,20 @@ def health():
 def ping():
     return "pong"
 
+# 🔥 TEKSHIRISH: SERVER ALLAQACHON ISHGA TUShGANMI?
+def is_server_already_running():
+    try:
+        response = requests.get('http://localhost:10000/', timeout=2)
+        return response.status_code == 200
+    except:
+        return False
+
 def run_server():
+    # Agar server allaqachon ishga tushgan bo'lsa, yangi server ochmaslik
+    if is_server_already_running():
+        print("✅ Server already running - skipping duplicate")
+        return
+    
     try:
         port = int(os.environ.get("PORT", 10000))
         print(f"🚀 Starting server on port {port}...")
@@ -27,6 +40,7 @@ def run_server():
         print(f"❌ Server error: {e}")
 
 def keep_alive():
+    # Faqat bir marta ishga tushirish
     server_thread = Thread(target=run_server, daemon=True)
     server_thread.start()
     print("✅ Keep-alive server started!")
