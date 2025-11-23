@@ -2564,11 +2564,11 @@ async def back_from_payment(message: types.Message, state: FSMContext):
 # ==============================================================================
 # -*-*- HOLLYWOOD ACTORLARINI KO'RSATISH -*-*-
 # ==============================================================================
+
+# HOLLYWOOD
 @dp.message(F.text == "🎭 Hollywood Kinolari")
 async def show_hollywood_movies(message: types.Message):
-    """Hollywood kinolarini to'g'ridan-to'g'ri ko'rsatish"""
-    # Hollywood kategoriyasidagi barcha kinolarni olish
-    movies = db.get_movies_by_category("🎭 Hollywood Kinolari")
+    await show_category_movies(message, "🎭 Hollywood Kinolari", "Hollywood kinolari")
 
     if not movies:
         await message.answer(
@@ -2609,11 +2609,10 @@ async def show_hollywood_movies(message: types.Message):
 # ==============================================================================
 # -*-*- HIND ACTORLARINI KO'RSATISH -*-*-
 # ==============================================================================
+# HIND FILMLARI
 @dp.message(F.text == "🎬 Hind Filmlari")
 async def show_indian_movies(message: types.Message):
-    """Hind kinolarini to'g'ridan-to'g'ri ko'rsatish"""
-    # Hind kategoriyasidagi barcha kinolarni olish
-    movies = db.get_movies_by_category("🎬 Hind Filmlari")
+    await show_category_movies(message, "🎬 Hind Filmlari", "Hind filmlari")
 
     if not movies:
         await message.answer(
@@ -2651,10 +2650,10 @@ async def show_indian_movies(message: types.Message):
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
 
+# HIND SERIALLARI
 @dp.message(F.text == "📺 Hind Seriallari")
 async def show_indian_series(message: types.Message):
-    """Hind seriallarini ko'rsatish"""
-    movies = db.get_movies_by_category("📺 Hind Seriallari")
+    await show_category_movies(message, "📺 Hind Seriallari", "Hind seriallari")
     
     if not movies:
         await message.answer(
@@ -2683,10 +2682,10 @@ async def show_indian_series(message: types.Message):
 # ==============================================================================
 # -*-*- RUS KINOLARI -*-*-
 # ==============================================================================
+# RUS KINOLARI
 @dp.message(F.text == "🎥 Rus Kinolari")
 async def show_russian_movies(message: types.Message):
-    """Rus kinolarini ko'rsatish"""
-    movies = db.get_movies_by_category("🎥 Rus Kinolari")
+    await show_category_movies(message, "🎥 Rus Kinolari", "Rus kinolari")
     
     if not movies:
         await message.answer(
@@ -2712,10 +2711,10 @@ async def show_russian_movies(message: types.Message):
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
 
+# RUS SERIALLARI
 @dp.message(F.text == "📟 Rus Seriallari")
 async def show_russian_series(message: types.Message):
-    """Rus seriallarini ko'rsatish"""
-    movies = db.get_movies_by_category("📟 Rus Seriallari")
+    await show_category_movies(message, "📟 Rus Seriallari", "Rus seriallari")
     
     if not movies:
         await message.answer(
@@ -2744,10 +2743,10 @@ async def show_russian_series(message: types.Message):
 # ==============================================================================
 # -*-*- O'ZBEK KINOLARI -*-*-
 # ==============================================================================
+# O'ZBEK KINOLARI
 @dp.message(F.text == "🎞️ O'zbek Kinolari")
 async def show_uzbek_movies(message: types.Message):
-    """O'zbek kinolarini ko'rsatish"""
-    movies = db.get_movies_by_category("🎞️ O'zbek Kinolari")
+    await show_category_movies(message, "🎞️ O'zbek Kinolari", "O'zbek kinolari")
     
     if not movies:
         await message.answer(
@@ -2773,10 +2772,10 @@ async def show_uzbek_movies(message: types.Message):
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
 
+# O'ZBEK SERIALLARI
 @dp.message(F.text == "📱 O'zbek Seriallari")
 async def show_uzbek_series(message: types.Message):
-    """O'zbek seriallarini ko'rsatish"""
-    movies = db.get_movies_by_category("📱 O'zbek Seriallari")
+    await show_category_movies(message, "📱 O'zbek Seriallari", "O'zbek seriallari")
     
     if not movies:
         await message.answer(
@@ -2805,10 +2804,10 @@ async def show_uzbek_series(message: types.Message):
 # ==============================================================================
 # -*-*- ISLOMIY KONTENTLAR -*-*-
 # ==============================================================================
+# ISLOMIY KINOLAR
 @dp.message(F.text == "🕌 Islomiy Kinolar")
 async def show_islamic_movies(message: types.Message):
-    """Islomiy kinolarni ko'rsatish"""
-    movies = db.get_movies_by_category("🕌 Islomiy Kinolar")
+    await show_category_movies(message, "🕌 Islomiy Kinolar", "Islomiy kinolar")
     
     if not movies:
         await message.answer(
@@ -2834,10 +2833,10 @@ async def show_islamic_movies(message: types.Message):
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
 
+# ISLOMIY SERIALLAR
 @dp.message(F.text == "📖 Islomiy Seriallar")
 async def show_islamic_series(message: types.Message):
-    """Islomiy seriallarni ko'rsatish"""
-    movies = db.get_movies_by_category("📖 Islomiy Seriallar")
+    await show_category_movies(message, "📖 Islomiy Seriallar", "Islomiy seriallar")
     
     if not movies:
         await message.answer(
@@ -2866,10 +2865,10 @@ async def show_islamic_series(message: types.Message):
 # ==============================================================================
 # -*-*- TURK KINOLARI -*-*-
 # ==============================================================================
+# TURK KINOLARI
 @dp.message(F.text == "🇹🇷 Turk Kinolari")
 async def show_turkish_movies(message: types.Message):
-    """Turk kinolarini ko'rsatish"""
-    movies = db.get_movies_by_category("🇹🇷 Turk Kinolari")
+    await show_category_movies(message, "🇹🇷 Turk Kinolari", "Turk kinolari")
     
     if not movies:
         await message.answer(
@@ -2895,10 +2894,10 @@ async def show_turkish_movies(message: types.Message):
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
 
+# TURK SERIALLARI
 @dp.message(F.text == "📺 Turk Seriallari")
 async def show_turkish_series(message: types.Message):
-    """Turk seriallarini ko'rsatish"""
-    movies = db.get_movies_by_category("📺 Turk Seriallari")
+    await show_category_movies(message, "📺 Turk Seriallari", "Turk seriallari")
     
     if not movies:
         await message.answer(
@@ -2927,10 +2926,10 @@ async def show_turkish_series(message: types.Message):
 # ==============================================================================
 # -*-*- BOLALAR KONTENTLARI -*-*-
 # ==============================================================================
+# BOLALAR KINOLARI
 @dp.message(F.text == "👶 Bolalar Kinolari")
 async def show_kids_movies(message: types.Message):
-    """Bolalar kinolarini ko'rsatish"""
-    movies = db.get_movies_by_category("👶 Bolalar Kinolari")
+    await show_category_movies(message, "👶 Bolalar Kinolari", "Bolalar kinolari")
     
     if not movies:
         await message.answer(
@@ -2988,10 +2987,10 @@ async def show_kids_cartoons(message: types.Message):
 # ==============================================================================
 # -*-*- KOREYS KONTENTLARI -*-*-
 # ==============================================================================
+# KOREYS KINOLARI
 @dp.message(F.text == "🇰🇷 Koreys Kinolari")
 async def show_korean_movies(message: types.Message):
-    """Koreys kinolarini ko'rsatish"""
-    movies = db.get_movies_by_category("🇰🇷 Koreys Kinolari")
+    await show_category_movies(message, "🇰🇷 Koreys Kinolari", "Koreys kinolari")
     
     if not movies:
         await message.answer(
@@ -3017,10 +3016,10 @@ async def show_korean_movies(message: types.Message):
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
 
+# KOREYS SERIALLARI
 @dp.message(F.text == "📡 Koreys Seriallari")
 async def show_korean_series(message: types.Message):
-    """Koreys seriallarini ko'rsatish"""
-    movies = db.get_movies_by_category("📡 Koreys Seriallari")
+    await show_category_movies(message, "📡 Koreys Seriallari", "Koreys seriallari")
     
     if not movies:
         await message.answer(
@@ -3046,10 +3045,10 @@ async def show_korean_series(message: types.Message):
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
     
+# QISQA FILMLAR
 @dp.message(F.text == "🎯 Qisqa Filmlar")
 async def show_short_films(message: types.Message):
-    """Qisqa filmlarni ko'rsatish"""
-    movies = db.get_movies_by_category("🎯 Qisqa")
+    await show_category_movies(message, "🎯 Qisqa Filmlar", "Qisqa filmlar")
     
     if not movies:
         await message.answer(
@@ -3075,10 +3074,10 @@ async def show_short_films(message: types.Message):
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
 
+# KONSERT DASTURLARI
 @dp.message(F.text == "🎤 Konsert Dasturlari")
 async def show_concert_programs(message: types.Message):
-    """Konsert dasturlarini ko'rsatish"""
-    movies = db.get_movies_by_category("🎤 Konsert")
+    await show_category_movies(message, "🎤 Konsert Dasturlari", "Konsert dasturlari")
     
     if not movies:
         await message.answer(
@@ -3103,6 +3102,76 @@ async def show_concert_programs(message: types.Message):
         f"Kerakli konsertni tanlang:",
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )   
+    
+# ==============================================================================
+# -*-*- YAGONA KATEGORIYA KO'RSATISH FUNKSIYASI -*-*-
+# ==============================================================================
+
+async def show_category_movies(message: types.Message, category_name: str, display_name: str):
+    """Bitta funksiya bilan barcha kategoriyalarni ko'rsatish"""
+    try:
+        # 1. To'g'ridan-to'g'ri kategoriya bo'yicha qidirish
+        movies = db.get_movies_by_category(category_name)
+        
+        # 2. Agar topilmasa, qisman qidirish
+        if not movies:
+            all_movies = db.get_all_movies()
+            movies = [m for m in all_movies if category_name.split()[0] in m[3]]
+        
+        if not movies:
+            await message.answer(
+                f"❌ Hozircha {display_name} mavjud emas.",
+                reply_markup=get_category_keyboard("main")
+            )
+            return
+        
+        # Kinolarni narx bo'yicha guruhlash
+        free_movies = [m for m in movies if m[5] == 0]
+        paid_movies = [m for m in movies if m[5] > 0]
+
+        keyboard = []
+
+        # Bepul kinolar
+        for movie in free_movies:
+            try:
+                movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+                button_text = f"🎬 {title}"
+                if actor_name and actor_name != "Barcha":
+                    button_text += f" - {actor_name}"
+                keyboard.append([KeyboardButton(text=button_text)])
+            except Exception as e:
+                print(f"Kino qo'shishda xatolik: {e}")
+                continue
+
+        # Pullik kinolar
+        for movie in paid_movies:
+            try:
+                movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+                button_text = f"💵 {title}"
+                if actor_name and actor_name != "Barcha":
+                    button_text += f" - {actor_name}"
+                keyboard.append([KeyboardButton(text=button_text)])
+            except Exception as e:
+                print(f"Kino qo'shishda xatolik: {e}")
+                continue
+
+        keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+
+        await message.answer(
+            f"**{display_name.title()}**\n\n"
+            f"🆓 Bepul: {len(free_movies)} ta\n"
+            f"💵 Pullik: {len(paid_movies)} ta\n"
+            f"📊 Jami: {len(movies)} ta\n\n"
+            f"Kerakli kontentni tanlang:",
+            reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+        )
+        
+    except Exception as e:
+        await message.answer(
+            f"❌ {display_name.title()}ni yuklashda xatolik.\n\n"
+            f"Iltimos, keyinroq urinib ko'ring.",
+            reply_markup=get_category_keyboard("main")
+        )    
 
 # ==============================================================================
 # -*-*- BO'LIMLAR ICHIDAGI KLAVIATURALAR -*-*-

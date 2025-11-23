@@ -384,13 +384,14 @@ class Database:
         return self.get_movie(movie_id)
 
     def get_movies_by_category(self, category):
-        """Berilgan kategoriyadagi kinolarni olish"""
+        """Berilgan kategoriyadagi kinolarni olish - YANGILANGAN"""
         try:
+            # LIKE operatori bilan qisman moslik
             self.cursor.execute("""
                 SELECT * FROM movies 
-                WHERE category = ? 
+                WHERE category LIKE ? 
                 ORDER BY price ASC, created_at DESC
-            """, (category,))
+            """, (f'%{category}%',))
             return self.cursor.fetchall()
         except Exception as e:
             print(f"Kategoriya bo'yicha kinolarni olishda xatolik: {e}")
@@ -717,15 +718,26 @@ class Database:
             return cursor.fetchall()
 
     def get_all_categories(self):
-        """Barcha kategoriyalarni olish"""
+        """Barcha kategoriyalarni olish - YANGILANGAN"""
         return {
             "main_categories": [
-                "🎭 Hollywood Kinolari", "🎬 Hind Filmlari", "📺 Hind Seriallari",
-                "🎥 Rus Kinolari", "📟 Rus Seriallari", "🎞️ O'zbek Kinolari", 
-                "📱 O'zbek Seriallari", "🕌 Islomiy Kinolar", "📖 Islomiy Seriallar",
-                "🇹🇷 Turk Kinolari", "📺 Turk Seriallari", "👶 Bolalar Kinolari",
-                "🐰 Bolalar Multfilmlari", "🇰🇷 Koreys Kinolari", "📡 Koreys Seriallari",
-                "🎯 Qisqa Filmlar", "🎤 Konsert Dasturlari"
+                "🎭 Hollywood Kinolari", 
+                "🎬 Hind Filmlari", 
+                "📺 Hind Seriallari",
+                "🎥 Rus Kinolari", 
+                "📟 Rus Seriallari", 
+                "🎞️ O'zbek Kinolari", 
+                "📱 O'zbek Seriallari", 
+                "🕌 Islomiy Kinolar", 
+                "📖 Islomiy Seriallar",
+                "🇹🇷 Turk Kinolari", 
+                "📺 Turk Seriallari", 
+                "👶 Bolalar Kinolari",
+                "🐰 Bolalar Multfilmlari", 
+                "🇰🇷 Koreys Kinolari", 
+                "📡 Koreys Seriallari",
+                "🎯 Qisqa Filmlar", 
+                "🎤 Konsert Dasturlari"
             ],
             "sub_categories": {
                 "🎭 Hollywood Kinolari": [
@@ -733,28 +745,80 @@ class Database:
                     "🚗 Jason Statham", "🐲 Jeki Chan", "🥋 Skod Adkins",
                     "🎭 Denzil Washington", "💥 Jan Clod Van Dam", "👊 Brus lee",
                     "😂 Jim Cerry", "🏴‍☠️ Jonni Depp", "🥋 Jet Lee", 
-                    "👊 Mark Dacascos", "🎬 Bred Pitt", "🎭 Leonardo Dicaprio"
+                    "👊 Mark Dacascos", "🎬 Bred Pitt", "🎭 Leonardo Dicaprio",
+                    "📽️ Barcha Hollywood"
                 ],
                 "🎬 Hind Filmlari": [
                     "🤴 Shakruhkhan", "🎬 Amirkhan", "💪 Akshay Kumar",
                     "👑 Salmonkhan", "🌟 SayfAlihon", "🎭 Amitahbachchan",
-                    "🔥 MethunChakraborty", "🎥 Dharmendra", "🎞️ Raj Kapur"
+                    "🔥 MethunChakraborty", "🎥 Dharmendra", "🎞️ Raj Kapur",
+                    "📀 Barcha Hind"
                 ],
-                "📺 Hind Seriallari": [],
-                "🎥 Rus Kinolari": [],
-                "📟 Rus Seriallari": [],
-                "🎞️ O'zbek Kinolari": [],
-                "📱 O'zbek Seriallari": [],
-                "🕌 Islomiy Kinolar": [],
-                "📖 Islomiy Seriallar": [],
-                "🇹🇷 Turk Kinolari": [],
-                "📺 Turk Seriallari": [],
-                "👶 Bolalar Kinolari": [],
-                "🐰 Bolalar Multfilmlari": [],
-                "🇰🇷 Koreys Kinolari": [],
-                "📡 Koreys Seriallari": [],
-                "🎯 Qisqa Filmlar": [],
-                "🎤 Konsert Dasturlari": []
+                "📺 Hind Seriallari": [
+                    "📺 Barcha Hind Seriallari"
+                ],
+                "🎥 Rus Kinolari": [
+                    "💼 Ishdagi Ishq", "🎭 Shurikning Sarguzashtlari",
+                    "👑 Ivan Vasilivich", "🔥 Gugurtga Ketib", 
+                    "🕵️ If Qalqasing Mahbuzi", "👶 O'nta Neger Bolasi",
+                    "⚔️ Qo'lga Tushmas Qasoskorlar", "📀 Barcha Rus Kinolari"
+                ],
+                "📟 Rus Seriallari": [
+                    "🎮 Igra Seriali", "🚗 Bumer Seriali",
+                    "👥 Birgada Seriali", "📺 Barcha Rus Seriallari"
+                ],
+                "🎞️ O'zbek Kinolari": [
+                    "🎞️ Barcha O'zbek Kinolari"
+                ],
+                "📱 O'zbek Seriallari": [
+                    "📱 Barcha O'zbek Seriallari"
+                ],
+                "🕌 Islomiy Kinolar": [
+                    "🕌 Barcha Islomiy Kinolar"
+                ],
+                "📖 Islomiy Seriallar": [
+                    "🕌 Uvays Karoniy", "👑 Umar ibn Hattob",
+                    "🌙 Olamga Nur Soshgan Oy", "📺 Barcha Islomiy Seriallar"
+                ],
+                "🇹🇷 Turk Kinolari": [
+                    "🇹🇷 Barcha Turk Kinolari"
+                ],
+                "📺 Turk Seriallari": [
+                    "👑 Sulton Abdulhamidhon", "🐺 Qashqirlar Makoni",
+                    "📺 Barcha Turk Seriallari"
+                ],
+                "👶 Bolalar Kinolari": [
+                    "🏠 Bola Uyda Yolg'iz 1", "🏠 Bola Uyda Yolg'iz 2",
+                    "🏠 Bola Uyda Yolg'iz 3", "✈️ Uchubchi Devid",
+                    "⚡ Garry Poter 1", "⚡ Garry Poter 2", 
+                    "⚡ Garry Poter 3", "⚡ Garry Poter 4",
+                    "🎬 Barcha Bolalar Kinolari"
+                ],
+                "🐰 Bolalar Multfilmlari": [
+                    "❄️ Muzlik Davri 1", "❄️ Muzlik Davri 2",
+                    "❄️ Muzlik Davri 3", "🐭 Tom & Jerry",
+                    "🐻 Bori va Quyon", "🐻 Ayiq va Masha",
+                    "🐼 Kungfu Panda 1", "🐼 Kungfu Panda 2",
+                    "🐼 Kungfu Panda 3", "🐼 Kungfu Panda 4",
+                    "🐎 Mustang", "📀 Barcha Multfilmlar"
+                ],
+                "🇰🇷 Koreys Kinolari": [
+                    "🏙️ Jinoyatchilar Shahri 1", "🏙️ Jinoyatchilar Shahri 2",
+                    "🏙️ Jinoyatchilar Shahri 3", "🏙️ Jinoyatchilar Shahri 4",
+                    "🎬 Barcha Koreys Kinolari"
+                ],
+                "📡 Koreys Seriallari": [
+                    "❄️ Qish Sonatasi 1-20", "☀️ Yoz Ifori 1-20",
+                    "💖 Qalbim Chechagi 1-17", "🏦 Va Bank 1-20",
+                    "👑 Jumong 1-20", "⚓ Dengiz Hukumdori 1-20",
+                    "📺 Barcha Koreys Seriallari"
+                ],
+                "🎯 Qisqa Filmlar": [
+                    "🎯 Barcha Qisqa Filmlar"
+                ],
+                "🎤 Konsert Dasturlari": [
+                    "🎤 Barcha Konsert Dasturlari"
+                ]
             }
         }
         
