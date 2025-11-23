@@ -2086,13 +2086,13 @@ async def process_delete_confirmation(message: types.Message, state: FSMContext)
 # ==============================================================================
 # -*-*- KINO TANLANGANDA VIDEO YUBORISH (YANGILANGAN) -*-*-
 # ==============================================================================
-@dp.message(F.text.startswith("🎬"))
-async def show_movie_details(message: types.Message, state: FSMContext):
-    """Kino tanlanganda banner yuborish"""
-    full_text = message.text[2:].strip()  # "🎬 " ni olib tashlaymiz
+@dp.message(F.text.startswith("🎬") | F.text.startswith("💵"))
+async def show_movie_details_fixed(message: types.Message, state: FSMContext):
+    """Kino tanlanganda banner yuborish (🎬 yoki 💵 bilan boshlanganlar uchun)"""
+    full_text = message.text[2:].strip()  # "🎬 " yoki "💵 " ni olib tashlaymiz
     user_id = message.from_user.id
     
-    print(f"DEBUG: Kino tanlandi: '{full_text}'")
+    print(f"DEBUG: Kino tanlandi: '{message.text}' -> '{full_text}'")
     
     # Faqat kino nomini olish (aktyor nomini olib tashlash)
     movie_title = full_text
@@ -2108,10 +2108,10 @@ async def show_movie_details(message: types.Message, state: FSMContext):
     for movie in all_movies:
         movie_id, db_title, description, category, file_id, price, is_premium, db_actor, banner_file_id, created_at, added_by = movie
         
-        # Faqat kino nomini solishtiramiz
-        if movie_title.lower() == db_title.lower():
+        # Kino nomini solishtiramiz (qisman moslik)
+        if movie_title.lower() in db_title.lower():
             selected_movie = movie
-            print(f"DEBUG: Kino topildi: {db_title}")
+            print(f"DEBUG: Kino topildi: {db_title}, ID: {movie_id}, Narx: {price}")
             break
     
     if selected_movie:
@@ -2122,11 +2122,12 @@ async def show_movie_details(message: types.Message, state: FSMContext):
             movie_price=selected_movie[5]
         )
         
-        print(f"DEBUG: Banner yuborilmoqda...")
+        print(f"DEBUG: State saqlandi - Movie ID: {selected_movie[0]}, Title: {selected_movie[1]}")
+        
         # BANNER YUBORISH
         await send_content_banner(message, selected_movie, user_id)
     else:
-        print(f"DEBUG: Kino topilmadi")
+        print(f"DEBUG: Kino topilmadi: '{movie_title}'")
         await message.answer("❌ Kino topilmadi. Iltimos, qayta urinib ko'ring.")
         
 # ==============================================================================
