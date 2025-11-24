@@ -110,7 +110,54 @@ class PaymentState(StatesGroup):
     waiting_payment_method = State()
     waiting_payment_confirmation = State()
     waiting_payment_receipt = State()    
+    
+# ==============================================================================
+# -*-*- YAGONA BO'LIM KLAVIATURASI -*-*-
+# ==============================================================================
+def get_category_keyboard(category_type, category_name=None):
+    """Barcha bo'limlar uchun yagona klaviatura"""
+    db = Database()  # Database obyektini yaratish
+    all_categories = db.get_all_categories()  # <- db orqali chaqirish
+    
+    if category_type == "main":
+        categories = all_categories["main_categories"]
+    elif category_type == "sub":
+        categories = all_categories["sub_categories"].get(category_name, [])
+    
+    keyboard = []
+    row = []
+    
+    for i, category in enumerate(categories):
+        row.append(KeyboardButton(text=category))
+        if len(row) == 2 or i == len(categories) - 1:
+            keyboard.append(row)
+            row = []
+    
+    if category_type == "main":
+        keyboard.append([KeyboardButton(text="🔙 Asosiy Menyu")])
+    else:
+        keyboard.append([KeyboardButton(text="🔙 Orqaga")])
+    
+    return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True) 
 
+# -*-*- TIL TANLASH KLAVIATURASI -*-*-
+def language_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🇺🇿 O'zbek"), KeyboardButton(text="🇷🇺 Русский"), KeyboardButton(text="🏴 English")],
+        ],
+        resize_keyboard=True
+    )
+
+# -*-*- TELEFON RAQAM KLAVIATURASI -*-*-
+def phone_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📞 Telefon raqamni yuborish", request_contact=True)],
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
 
 def main_menu_keyboard(user_id=None, username=None):
     keyboard = [
@@ -1748,47 +1795,28 @@ async def start_command(message: types.Message, state: FSMContext):
     user = db.get_user(message.from_user.id)
     # ... qolgan kod
     
-@dp.message(CommandStart())
+    @dp.message(CommandStart())
 async def start_command(message: types.Message, state: FSMContext):
-    # Blok tekshiruvi
-    if db.is_user_blocked(message.from_user.id):
-        block_info = db.get_blocked_user_info(message.from_user.id)
-        if block_info:
-            reason, duration, until, blocked_at, blocked_by = block_info
-            duration_display = {
-                "24_soat": "24 soat",
-                "7_kun": "7 kun", 
-                "Noma'lum": "Noma'lum muddat"
-            }.get(duration, duration)
-            
-            block_message = (
-                f"🚫 **KIRISH TA'QICHLANGAN!**\n\n"
-                f"Hurmatli foydalanuvchi, platforma qoidalariga amal qilinmaganligi "
-                f"sababli hisobingiz faoliyati vaqtincha bloklandi.\n\n"
-                f"📋 **Sabab:** {reason}\n"
-                f"⏰ **Muddati:** {duration_display}\n\n"
-                f"⚠️ **Ogohlantirishlar:**\n"
-                f"• Blokni chetlab o'tishga urinish — muddatni uzaytiradi\n"
-                f"• Administrator bilan hurmat bilan muloqot qiling\n"
-                f"• Yolg'on ma'lumot taqdim qilinishi blokni bekor qilmaydi\n\n"
-                f"Agar bu qaror bo'yicha e'tirozingiz bo'lsa, quyidagi manzil orqali administratorga yozing:\n\n"
-                f"📞 **Administrator:** @Operator_1985\n"
-                f"📝 Arizangiz ko'rib chiqiladi."
-            )
-            await message.answer(block_message)
-            return
+    # Blok tekshiruvi...
     
-    user = db.get_user(message.from_user.id)
+    # Animatsiya
+    msg1 = await message.answer("🚀 **Kino Olamiga Xush Kelibsiz!**")
+    await asyncio.sleep(1)
     
-    if user:
-        await message.answer(
-            "🤗 Assalomu Aleykum! Dunyo Kinosi Olamiga xush kelibsiz! 🎬\n"
-            "Bu Bot Siz izlagan barcha Kontentlarni o'z ichiga olgan. 🔍\n"
-            "Sevimli Kino va Seriallaringizni va Multfilmlarni\n"
-            "Musiqa Konsert Dasturlarini To'liq Nomi Yozib\n"
-            "Qidiruv Bo'limi Orqali topshingiz ham mumkin!",
-            reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
-        )
+    msg2 = await message.answer("⏳ **Yuklanmoqda...**")
+    await asyncio.sleep(1)
+    
+    await msg1.delete()
+    await msg2.delete()
+    
+    await message.answer(
+        "🎬 **Kino Botga Xush Kelibsiz!**\n\n"
+        "Bu yerda siz:\n"
+        "• 🎬 Barcha kinolarni ko'rishingiz mumkin\n"
+        "• 🔍 Qidiruv orqali kerakli kinoni topishingiz mumkin\n\n"
+        "Kerakli bo'limni tanlang:",
+        reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
+    )
     else:
         await message.answer(
             "🤗 Assalomu Aleykum Dunyo Kinosi Olamiga xush kelibsiz! 🎬\n"
