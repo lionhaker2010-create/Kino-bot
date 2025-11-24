@@ -818,4 +818,10 @@ class Database:
                 SELECT user_id, payment_date FROM payments 
                 WHERE status = 'pending' AND payment_type = 'premium'
             ''')
+
             return cursor.fetchall()
+     
+    # database.py faylining oxiriga qo'shing:
+    def get_movies_by_main_category(self, main_category):
+        """Asosiy kategoriya bo'yicha kinolarni olish"""
+        return self.get_all_movies_by_main_category(main_category) 
