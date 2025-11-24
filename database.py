@@ -878,18 +878,24 @@ class Database:
         if not movie:
             return False
         
-        # Faqat PULLIK kinolarni yuklab olish mumkin
-        if movie[5] == 0:  # price = 0 (bepul)
+        movie_price = movie[5]  # price
+        
+        # FAQAT PULLIK KINOLARNI YUKLAB OLISH MUMKIN
+        if movie_price == 0:  # price = 0 (bepul)
+            print(f"🛠️ DATABASE DEBUG: Bepul kino - yuklab olish MUMKIN EMAS")
             return False
         
         # Agar foydalanuvchi kino sotib olgan bo'lsa
         if self.check_user_purchase(user_id, movie_id):
+            print(f"🛠️ DATABASE DEBUG: Sotib olingan kino - yuklab olish MUMKIN")
             return True
         
         # Agar foydalanuvchi premium bo'lsa
         if self.check_premium_status(user_id):
+            print(f"🛠️ DATABASE DEBUG: Premium foydalanuvchi - yuklab olish MUMKIN")
             return True
         
+        print(f"🛠️ DATABASE DEBUG: Yuklab olish huquqi yo'q")
         return False     
 
     # -*-*- BARCHA FOYDALANUVCHILAR TO'LIQ MA'LUMOTLARI -*-*-

@@ -637,7 +637,7 @@ async def process_unblock_user_id(message: types.Message, state: FSMContext):
 
 @dp.message(F.text == "📥 Yuklab olish")
 async def download_movie_handler(message: types.Message, state: FSMContext):
-    """Kino yuklab olish"""
+    """Kino yuklab olish - FAQAT PULLIK KINOLAR UCHUN"""
     # Blok tekshiruvi
     if await check_and_block(message):
         return
@@ -1370,17 +1370,14 @@ async def process_search(message: types.Message, state: FSMContext):
 
 # -*-*- KONTENT BANNERI YUBORISH (DEBUG QO'SHILGAN) -*-*-
 async def send_content_banner(message: types.Message, movie, user_id):
-    """Kontent bannerini yuborish - FAQAT PULLIK KINOLAR UCHUN TO'LOV TUGMASI"""
+    """Kontent bannerini yuborish - FAQAT PULLIK KINOLARGA YUKLAB OLISH RUHSATI"""
     try:
         print(f"🚨 DEBUG: send_content_banner chaqirildi")
-        print(f"🚨 DEBUG: Movie ma'lumotlari: {len(movie)} ta element")
         
         # 11 TA USTUNNI OLISH
         movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
         
         print(f"🚨 DEBUG: Kino: {title}, Narx: {price}, User: {user_id}")
-        print(f"🚨 DEBUG: Banner file_id: {banner_file_id}")
-        print(f"🚨 DEBUG: Video file_id: {file_id}")
         
         # Foydalanuvchi holatini TEKSHRISH
         user_has_purchased = db.check_user_purchase(user_id, movie_id)
@@ -1400,34 +1397,42 @@ async def send_content_banner(message: types.Message, movie, user_id):
         
         # HOLATNI ANIQLASH
         can_watch = False
+        can_download = False  # <- YANGI: Yuklab olish ruxsati
         keyboard_buttons = []
         
         if price == 0:
-            # 🆓 BEPUL KINO - TO'LOV TUGMASI YO'Q!
-            caption += "🆓 **Bepul kontent** - Darrov ko'rashingiz mumkin!"
+            # 🆓 BEPUL KINO - FAQAT KO'RISH, YUKLAB OLISH YO'Q!
+            caption += "🆓 **Bepul kontent** - Faqat onlayn tomosha qilish mumkin!\n"
+            caption += "❌ **Yuklab olish mumkin emas** - Faqat pullik kontentlarni yuklab olishingiz mumkin"
             can_watch = True
+            can_download = False  # Bepul kinolarni yuklab olish MUMKIN EMAS
             keyboard_buttons.append([KeyboardButton(text="🔙 Orqaga")])
             
         elif user_has_purchased:
-            # ✅ SOTIB OLINGAN
-            caption += "✅ **Sotib olingan** - Darrov ko'rashingiz mumkin!"
+            # ✅ SOTIB OLINGAN - YUKLAB OLISH MUMKIN
+            caption += "✅ **Sotib olingan** - Yuklab olishingiz mumkin!"
             can_watch = True
+            can_download = True  # Sotib olingan kinolarni yuklab olish MUMKIN
+            keyboard_buttons.append([KeyboardButton(text="📥 Yuklab olish")])
             keyboard_buttons.append([KeyboardButton(text="🔙 Orqaga")])
             
         elif is_premium_user:
-            # 👑 PREMIUM
-            caption += "👑 **Premium** - Darrov ko'rashingiz mumkin!"
+            # 👑 PREMIUM - YUKLAB OLISH MUMKIN
+            caption += "👑 **Premium** - Yuklab olishingiz mumkin!"
             can_watch = True
+            can_download = True  # Premium foydalanuvchilar yuklab olishi MUMKIN
+            keyboard_buttons.append([KeyboardButton(text="📥 Yuklab olish")])
             keyboard_buttons.append([KeyboardButton(text="🔙 Orqaga")])
             
         else:
             # 🔒 PULLIK KINO - FAQAT SHUNDA TO'LOV TUGMASI
             caption += "🔒 **Pullik kontent** - Yuklab olish uchun to'lov qiling"
             can_watch = False
+            can_download = False  # To'lov qilinmaguncha yuklab olish MUMKIN EMAS
             keyboard_buttons.append([KeyboardButton(text="💳 Yuklab olish uchun to'lash")])
             keyboard_buttons.append([KeyboardButton(text="🔙 Orqaga")])
         
-        print(f"🚨 DEBUG: Ko'rish ruxsati: {can_watch}")
+        print(f"🚨 DEBUG: Ko'rish ruxsati: {can_watch}, Yuklab olish ruxsati: {can_download}")
         
         # 1. ALOHIDA BANNER RASMI YUBORISH
         if banner_file_id:
@@ -1456,7 +1461,8 @@ async def send_content_banner(message: types.Message, movie, user_id):
             # Video yuborish
             await message.answer_video(
                 video=file_id,
-                caption="🎬 **Video** - Play tugmasini bosing va tomosha qiling!",
+                caption="🎬 **Video** - Play tugmasini bosing va tomosha qiling!" + 
+                       ("\n\n📥 **Yuklab olish uchun yuqoridagi tugmani bosing**" if can_download else "\n\n❌ **Yuklab olish mumkin emas** - Faqat pullik kontentlarni yuklab olishingiz mumkin"),
                 reply_markup=ReplyKeyboardMarkup(
                     keyboard=keyboard_buttons,
                     resize_keyboard=True
@@ -1468,7 +1474,7 @@ async def send_content_banner(message: types.Message, movie, user_id):
             # Pullik kontent - FAQAT XABAR, VIDEO EMAS!
             await message.answer(
                 "🔒 **PULLIK KONTENT**\n\n"
-                "Bu kino pullik! To'liq ko'rish uchun quyidagi tugma orqali to'lov qiling:",
+                "Bu kino pullik! To'liq ko'rish va yuklab olish uchun quyidagi tugma orqali to'lov qiling:",
                 reply_markup=ReplyKeyboardMarkup(
                     keyboard=keyboard_buttons,
                     resize_keyboard=True
