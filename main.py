@@ -1224,10 +1224,8 @@ async def all_content(message: types.Message):
         keyboard.append([KeyboardButton(text=button_text)])
     
     # Pullik kinolar
-    for movie in paid_movies:
-
+        for movie in paid_movies:
         # 11 TA QIYMATNI OLISH
-
         movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
         button_text = f"💵 {title}"
         if actor_name:
@@ -1243,6 +1241,7 @@ async def all_content(message: types.Message):
         f"📊 **Jami:** {len(movies)} ta kino\n\n"
         f"Kerakli kinoni tanlang:",
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )  # <-- BU QAVS YO'Q EDI, QO'SHILD!
     
 # ==============================================================================
 # -*-*- QIDIRUV HANDLERLARI -*-*-
