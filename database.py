@@ -1013,6 +1013,7 @@ class Database:
                 WHERE category LIKE '%Maxsus%' OR category LIKE '%Exclusive%' OR category LIKE '%maxsus%'
                 ORDER BY created_at DESC
             ''')
+<<<<<<< HEAD
             return cursor.fetchall()        
             
     def add_premium_subscription(self, user_id, duration_days=30, amount=130000):
@@ -1047,3 +1048,6 @@ class Database:
                 return is_active
             print(f"🛠️ DATABASE DEBUG: check_premium_status - User: {user_id}, Active: False")
             return False        
+=======
+            return cursor.fetchall()        
+>>>>>>> ca18c0a994853bd315938afa9be2eee2d312a865
