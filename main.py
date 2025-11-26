@@ -1186,10 +1186,8 @@ async def process_unblock_confirmation(message: types.Message, state: FSMContext
 # ==============================================================================
 # -*-*- BARCHA KONTENTLAR HANDLERI (YANGILANGAN) -*-*-
 # ==============================================================================
-<<<<<<< HEAD
-=======
 
->>>>>>> ca18c0a994853bd315938afa9be2eee2d312a865
+
 @dp.message(F.text == "🎬 Barcha Kontentlar")
 async def all_content(message: types.Message):
     """Barcha kontentlarni ko'rsatish (pullik va bepul)"""
@@ -1216,10 +1214,9 @@ async def all_content(message: types.Message):
     
     # Bepul kinolar
     for movie in free_movies:
-<<<<<<< HEAD
-=======
+
         # 11 TA QIYMATNI OLISH
->>>>>>> ca18c0a994853bd315938afa9be2eee2d312a865
+
         movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
         button_text = f"🎬 {title}"
         if actor_name:
@@ -1228,10 +1225,9 @@ async def all_content(message: types.Message):
     
     # Pullik kinolar
     for movie in paid_movies:
-<<<<<<< HEAD
-=======
+
         # 11 TA QIYMATNI OLISH
->>>>>>> ca18c0a994853bd315938afa9be2eee2d312a865
+
         movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
         button_text = f"💵 {title}"
         if actor_name:
@@ -1247,11 +1243,6 @@ async def all_content(message: types.Message):
         f"📊 **Jami:** {len(movies)} ta kino\n\n"
         f"Kerakli kinoni tanlang:",
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-<<<<<<< HEAD
-    )  
-=======
-    )   
->>>>>>> ca18c0a994853bd315938afa9be2eee2d312a865
     
 # ==============================================================================
 # -*-*- QIDIRUV HANDLERLARI -*-*-
