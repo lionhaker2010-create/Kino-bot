@@ -1380,15 +1380,15 @@ async def process_search(message: types.Message, state: FSMContext):
 # ==============================================================================
 # -*-*- KONTENT BANNERI YUBORISH (TUZATILGAN) -*-*-
 # ==============================================================================
-<<<<<<< HEAD
+
 async def send_content_banner(message: types.Message, movie, user_id):
     """Kontent bannerini yuborish - TO'LIQ TUZATILGAN VERSIYA"""
-=======
+
 
 # -*-*- KONTENT BANNERI YUBORISH (DEBUG QO'SHILGAN) -*-*-
 async def send_content_banner(message: types.Message, movie, user_id):
     """Kontent bannerini yuborish - FAQAT PULLIK KINOLARGA YUKLAB OLISH RUHSATI"""
->>>>>>> ca18c0a994853bd315938afa9be2eee2d312a865
+
     try:
         print(f"🚨 DEBUG: send_content_banner chaqirildi")
         
@@ -1403,7 +1403,7 @@ async def send_content_banner(message: types.Message, movie, user_id):
         
         print(f"🚨 DEBUG: Sotib olgan: {user_has_purchased}, Premium: {is_premium_user}")
         
-<<<<<<< HEAD
+
         # STATE GA MA'LUMOTLARNI SAQLASH - BU ENG MUHIM!
         from aiogram.fsm.context import FSMContext
         state = FSMContext(storage=dp.storage, key=tuple([user_id, user_id, None]))
@@ -1415,8 +1415,7 @@ async def send_content_banner(message: types.Message, movie, user_id):
         
         print(f"🚨 DEBUG: State saqlandi - Movie ID: {movie_id}, Title: {title}")
         
-=======
->>>>>>> ca18c0a994853bd315938afa9be2eee2d312a865
+
         # Banner matni
         caption = (
             f"🎬 **{title}**\n\n"
@@ -1429,7 +1428,7 @@ async def send_content_banner(message: types.Message, movie, user_id):
         
         # HOLATNI ANIQLASH
         can_watch = False
-<<<<<<< HEAD
+
         can_download = False
         keyboard_buttons = []
         
@@ -1446,7 +1445,7 @@ async def send_content_banner(message: types.Message, movie, user_id):
             caption += "✅ **Sotib olingan** - Yuklab olishingiz mumkin!"
             can_watch = True
             can_download = True
-=======
+
         can_download = False  # <- YANGI: Yuklab olish ruxsati
         keyboard_buttons = []
         
@@ -1463,37 +1462,37 @@ async def send_content_banner(message: types.Message, movie, user_id):
             caption += "✅ **Sotib olingan** - Yuklab olishingiz mumkin!"
             can_watch = True
             can_download = True  # Sotib olingan kinolarni yuklab olish MUMKIN
->>>>>>> ca18c0a994853bd315938afa9be2eee2d312a865
+
             keyboard_buttons.append([KeyboardButton(text="📥 Yuklab olish")])
             keyboard_buttons.append([KeyboardButton(text="🔙 Orqaga")])
             
         elif is_premium_user:
-<<<<<<< HEAD
+
             # 👑 PREMIUM
             caption += "👑 **Premium** - Yuklab olishingiz mumkin!"
             can_watch = True
             can_download = True
-=======
+
             # 👑 PREMIUM - YUKLAB OLISH MUMKIN
             caption += "👑 **Premium** - Yuklab olishingiz mumkin!"
             can_watch = True
             can_download = True  # Premium foydalanuvchilar yuklab olishi MUMKIN
->>>>>>> ca18c0a994853bd315938afa9be2eee2d312a865
+
             keyboard_buttons.append([KeyboardButton(text="📥 Yuklab olish")])
             keyboard_buttons.append([KeyboardButton(text="🔙 Orqaga")])
             
         else:
-<<<<<<< HEAD
+
             # 🔒 PULLIK KINO - TO'LOV TUGMASI
             caption += "🔒 **Pullik kontent** - Yuklab olish uchun to'lov qiling"
             can_watch = False
             can_download = False
-=======
+
             # 🔒 PULLIK KINO - FAQAT SHUNDA TO'LOV TUGMASI
             caption += "🔒 **Pullik kontent** - Yuklab olish uchun to'lov qiling"
             can_watch = False
             can_download = False  # To'lov qilinmaguncha yuklab olish MUMKIN EMAS
->>>>>>> ca18c0a994853bd315938afa9be2eee2d312a865
+
             keyboard_buttons.append([KeyboardButton(text="💳 Yuklab olish uchun to'lash")])
             keyboard_buttons.append([KeyboardButton(text="🔙 Orqaga")])
         
@@ -1504,15 +1503,15 @@ async def send_content_banner(message: types.Message, movie, user_id):
             print(f"🚨 DEBUG: Banner yuborilmoqda...")
             await message.answer_photo(
                 photo=banner_file_id,
-<<<<<<< HEAD
+
                 caption=caption,
                 reply_markup=ReplyKeyboardMarkup(
                     keyboard=keyboard_buttons,
                     resize_keyboard=True
                 )
-=======
+
                 caption=caption
->>>>>>> ca18c0a994853bd315938afa9be2eee2d312a865
+
             )
             print(f"🚨 DEBUG: Banner yuborildi")
         else:
@@ -1525,10 +1524,9 @@ async def send_content_banner(message: types.Message, movie, user_id):
                     resize_keyboard=True
                 )
             )
-<<<<<<< HEAD
-=======
+
             return
->>>>>>> ca18c0a994853bd315938afa9be2eee2d312a865
+
         
         # 2. VIDEO YUBORISH - FAQAT CAN_WATCH = TRUE BO'LSA
         if can_watch:
@@ -1538,36 +1536,35 @@ async def send_content_banner(message: types.Message, movie, user_id):
             await message.answer_video(
                 video=file_id,
                 caption="🎬 **Video** - Play tugmasini bosing va tomosha qiling!" + 
-<<<<<<< HEAD
+
                        ("\n\n📥 **Yuklab olish uchun yuqoridagi tugmani bosing**" if can_download else "\n\n❌ **Yuklab olish mumkin emas** - Faqat pullik kontentlarni yuklab olishingiz mumkin")
-=======
+
                        ("\n\n📥 **Yuklab olish uchun yuqoridagi tugmani bosing**" if can_download else "\n\n❌ **Yuklab olish mumkin emas** - Faqat pullik kontentlarni yuklab olishingiz mumkin"),
                 reply_markup=ReplyKeyboardMarkup(
                     keyboard=keyboard_buttons,
                     resize_keyboard=True
                 )
->>>>>>> ca18c0a994853bd315938afa9be2eee2d312a865
+
             )
             print(f"🚨 DEBUG: Video yuborildi")
         else:
             print(f"🚨 DEBUG: FAQAT PREVIEW YUBORILMOQDA")
-<<<<<<< HEAD
+
             # Pullik kontent - FAQAT XABAR
-=======
+
             # Pullik kontent - FAQAT XABAR, VIDEO EMAS!
->>>>>>> ca18c0a994853bd315938afa9be2eee2d312a865
+
             await message.answer(
                 "🔒 **PULLIK KONTENT**\n\n"
                 "Bu kino pullik! To'liq ko'rish va yuklab olish uchun quyidagi tugma orqali to'lov qiling:",
                 reply_markup=ReplyKeyboardMarkup(
-<<<<<<< HEAD
+
                     keyboard=[
                         [KeyboardButton(text="💳 Yuklab olish uchun to'lash")],
                         [KeyboardButton(text="🔙 Orqaga")]
                     ],
-=======
+
                     keyboard=keyboard_buttons,
->>>>>>> ca18c0a994853bd315938afa9be2eee2d312a865
                     resize_keyboard=True
                 )
             )
