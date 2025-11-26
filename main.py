@@ -2365,7 +2365,7 @@ async def show_movie_details_fixed(message: types.Message, state: FSMContext):
     print(f"DEBUG: Kino tanlandi: '{full_text}'")
     
     # Faqat kino nomini olish (aktyor nomini olib tashlash)
-=======
+
 @dp.message(F.text.startswith("🎯"))
 async def show_exclusive_movie_details(message: types.Message, state: FSMContext):
     """Maxsus kontentni ko'rsatish"""
@@ -2375,12 +2375,12 @@ async def show_exclusive_movie_details(message: types.Message, state: FSMContext
     print(f"DEBUG: Maxsus kontent tanlandi: '{full_text}'")
     
     # Faqat kino nomini olish
->>>>>>> ca18c0a994853bd315938afa9be2eee2d312a865
+
     movie_title = full_text
     if " - " in full_text:
         movie_title = full_text.split(" - ")[0].strip()
     
-<<<<<<< HEAD
+
     print(f"DEBUG: Qidirilayotgan kino nomi: '{movie_title}'")
     
     # Barcha kinolardan qidirish
@@ -2397,7 +2397,7 @@ async def show_exclusive_movie_details(message: types.Message, state: FSMContext
             break
     
     if selected_movie:
-=======
+
     # Maxsus kontentlarni olish
     exclusive_movies = db.get_exclusive_movies()
     selected_movie = None
@@ -2433,7 +2433,7 @@ async def show_exclusive_movie_details(message: types.Message, state: FSMContext
             )
             return
         
->>>>>>> ca18c0a994853bd315938afa9be2eee2d312a865
+
         # KINO MA'LUMOTLARINI STATE GA SAQLASH
         await state.update_data(
             movie_id=selected_movie[0],
@@ -2441,7 +2441,7 @@ async def show_exclusive_movie_details(message: types.Message, state: FSMContext
             movie_price=selected_movie[5]
         )
         
-<<<<<<< HEAD
+
         print(f"DEBUG: State saqlandi - Movie ID: {selected_movie[0]}, Title: {selected_movie[1]}")
         
         # BANNER YUBORISH
@@ -2458,12 +2458,12 @@ async def back_from_movie_details(message: types.Message, state: FSMContext):
         "Bo'limlarga qaytingiz:",
         reply_markup=sections_keyboard()
     )        
-=======
+
         # BANNER YUBORISH
         await send_content_banner(message, selected_movie, user_id)
     else:
         await message.answer("❌ Maxsus kontent topilmadi.")
->>>>>>> ca18c0a994853bd315938afa9be2eee2d312a865
+
         
 # ==============================================================================
 # -*-*- TO'LOV HANDLERLARI -*-*-
@@ -3989,7 +3989,7 @@ async def contact_admin(message: types.Message):
         f"• To'lov cheki (screenshot)\n"
         f"• Foydalanuvchi ID: {message.from_user.id}\n"
         f"• Xizmat turi (Premium/Yuklab olish va h.k.)"
-    )    
+    )   
     
 @dp.message(F.text == "📋 To'lov Qo'llanmasi")
 async def payment_guide(message: types.Message):
