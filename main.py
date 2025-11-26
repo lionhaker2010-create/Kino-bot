@@ -1186,7 +1186,6 @@ async def process_unblock_confirmation(message: types.Message, state: FSMContext
 # ==============================================================================
 # -*-*- BARCHA KONTENTLAR HANDLERI (YANGILANGAN) -*-*-
 # ==============================================================================
-
 @dp.message(F.text == "🎬 Barcha Kontentlar")
 async def all_content(message: types.Message):
     """Barcha kontentlarni ko'rsatish (pullik va bepul)"""
@@ -1213,7 +1212,6 @@ async def all_content(message: types.Message):
     
     # Bepul kinolar
     for movie in free_movies:
-        # 11 TA QIYMATNI OLISH
         movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
         button_text = f"🎬 {title}"
         if actor_name:
@@ -1222,7 +1220,6 @@ async def all_content(message: types.Message):
     
     # Pullik kinolar
     for movie in paid_movies:
-        # 11 TA QIYMATNI OLISH
         movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
         button_text = f"💵 {title}"
         if actor_name:
@@ -1238,7 +1235,7 @@ async def all_content(message: types.Message):
         f"📊 **Jami:** {len(movies)} ta kino\n\n"
         f"Kerakli kinoni tanlang:",
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-    )   
+    )  
     
 # ==============================================================================
 # -*-*- QIDIRUV HANDLERLARI -*-*-
@@ -1367,10 +1364,8 @@ async def process_search(message: types.Message, state: FSMContext):
 # ==============================================================================
 # -*-*- KONTENT BANNERI YUBORISH (TUZATILGAN) -*-*-
 # ==============================================================================
-
-# -*-*- KONTENT BANNERI YUBORISH (DEBUG QO'SHILGAN) -*-*-
 async def send_content_banner(message: types.Message, movie, user_id):
-    """Kontent bannerini yuborish - FAQAT PULLIK KINOLARGA YUKLAB OLISH RUHSATI"""
+    """Kontent bannerini yuborish - TO'LIQ TUZATILGAN VERSIYA"""
     try:
         print(f"🚨 DEBUG: send_content_banner chaqirildi")
         
@@ -1385,6 +1380,17 @@ async def send_content_banner(message: types.Message, movie, user_id):
         
         print(f"🚨 DEBUG: Sotib olgan: {user_has_purchased}, Premium: {is_premium_user}")
         
+        # STATE GA MA'LUMOTLARNI SAQLASH - BU ENG MUHIM!
+        from aiogram.fsm.context import FSMContext
+        state = FSMContext(storage=dp.storage, key=tuple([user_id, user_id, None]))
+        await state.update_data(
+            movie_id=movie_id,
+            movie_title=title,
+            movie_price=price
+        )
+        
+        print(f"🚨 DEBUG: State saqlandi - Movie ID: {movie_id}, Title: {title}")
+        
         # Banner matni
         caption = (
             f"🎬 **{title}**\n\n"
@@ -1397,38 +1403,38 @@ async def send_content_banner(message: types.Message, movie, user_id):
         
         # HOLATNI ANIQLASH
         can_watch = False
-        can_download = False  # <- YANGI: Yuklab olish ruxsati
+        can_download = False
         keyboard_buttons = []
         
         if price == 0:
-            # 🆓 BEPUL KINO - FAQAT KO'RISH, YUKLAB OLISH YO'Q!
+            # 🆓 BEPUL KINO
             caption += "🆓 **Bepul kontent** - Faqat onlayn tomosha qilish mumkin!\n"
             caption += "❌ **Yuklab olish mumkin emas** - Faqat pullik kontentlarni yuklab olishingiz mumkin"
             can_watch = True
-            can_download = False  # Bepul kinolarni yuklab olish MUMKIN EMAS
+            can_download = False
             keyboard_buttons.append([KeyboardButton(text="🔙 Orqaga")])
             
         elif user_has_purchased:
-            # ✅ SOTIB OLINGAN - YUKLAB OLISH MUMKIN
+            # ✅ SOTIB OLINGAN
             caption += "✅ **Sotib olingan** - Yuklab olishingiz mumkin!"
             can_watch = True
-            can_download = True  # Sotib olingan kinolarni yuklab olish MUMKIN
+            can_download = True
             keyboard_buttons.append([KeyboardButton(text="📥 Yuklab olish")])
             keyboard_buttons.append([KeyboardButton(text="🔙 Orqaga")])
             
         elif is_premium_user:
-            # 👑 PREMIUM - YUKLAB OLISH MUMKIN
+            # 👑 PREMIUM
             caption += "👑 **Premium** - Yuklab olishingiz mumkin!"
             can_watch = True
-            can_download = True  # Premium foydalanuvchilar yuklab olishi MUMKIN
+            can_download = True
             keyboard_buttons.append([KeyboardButton(text="📥 Yuklab olish")])
             keyboard_buttons.append([KeyboardButton(text="🔙 Orqaga")])
             
         else:
-            # 🔒 PULLIK KINO - FAQAT SHUNDA TO'LOV TUGMASI
+            # 🔒 PULLIK KINO - TO'LOV TUGMASI
             caption += "🔒 **Pullik kontent** - Yuklab olish uchun to'lov qiling"
             can_watch = False
-            can_download = False  # To'lov qilinmaguncha yuklab olish MUMKIN EMAS
+            can_download = False
             keyboard_buttons.append([KeyboardButton(text="💳 Yuklab olish uchun to'lash")])
             keyboard_buttons.append([KeyboardButton(text="🔙 Orqaga")])
         
@@ -1439,7 +1445,11 @@ async def send_content_banner(message: types.Message, movie, user_id):
             print(f"🚨 DEBUG: Banner yuborilmoqda...")
             await message.answer_photo(
                 photo=banner_file_id,
-                caption=caption
+                caption=caption,
+                reply_markup=ReplyKeyboardMarkup(
+                    keyboard=keyboard_buttons,
+                    resize_keyboard=True
+                )
             )
             print(f"🚨 DEBUG: Banner yuborildi")
         else:
@@ -1452,7 +1462,6 @@ async def send_content_banner(message: types.Message, movie, user_id):
                     resize_keyboard=True
                 )
             )
-            return
         
         # 2. VIDEO YUBORISH - FAQAT CAN_WATCH = TRUE BO'LSA
         if can_watch:
@@ -1462,21 +1471,20 @@ async def send_content_banner(message: types.Message, movie, user_id):
             await message.answer_video(
                 video=file_id,
                 caption="🎬 **Video** - Play tugmasini bosing va tomosha qiling!" + 
-                       ("\n\n📥 **Yuklab olish uchun yuqoridagi tugmani bosing**" if can_download else "\n\n❌ **Yuklab olish mumkin emas** - Faqat pullik kontentlarni yuklab olishingiz mumkin"),
-                reply_markup=ReplyKeyboardMarkup(
-                    keyboard=keyboard_buttons,
-                    resize_keyboard=True
-                )
+                       ("\n\n📥 **Yuklab olish uchun yuqoridagi tugmani bosing**" if can_download else "\n\n❌ **Yuklab olish mumkin emas** - Faqat pullik kontentlarni yuklab olishingiz mumkin")
             )
             print(f"🚨 DEBUG: Video yuborildi")
         else:
             print(f"🚨 DEBUG: FAQAT PREVIEW YUBORILMOQDA")
-            # Pullik kontent - FAQAT XABAR, VIDEO EMAS!
+            # Pullik kontent - FAQAT XABAR
             await message.answer(
                 "🔒 **PULLIK KONTENT**\n\n"
                 "Bu kino pullik! To'liq ko'rish va yuklab olish uchun quyidagi tugma orqali to'lov qiling:",
                 reply_markup=ReplyKeyboardMarkup(
-                    keyboard=keyboard_buttons,
+                    keyboard=[
+                        [KeyboardButton(text="💳 Yuklab olish uchun to'lash")],
+                        [KeyboardButton(text="🔙 Orqaga")]
+                    ],
                     resize_keyboard=True
                 )
             )
@@ -2276,54 +2284,35 @@ async def process_delete_confirmation(message: types.Message, state: FSMContext)
 # -*-*- MAXSUS KONTENTLAR HANDLERI -*-*-
 # ==============================================================================
 
-@dp.message(F.text.startswith("🎯"))
-async def show_exclusive_movie_details(message: types.Message, state: FSMContext):
-    """Maxsus kontentni ko'rsatish"""
-    full_text = message.text[2:].strip()  # "🎯 " ni olib tashlaymiz
+@dp.message(F.text.startswith("🎬"))
+async def show_movie_details_fixed(message: types.Message, state: FSMContext):
+    """Kino tanlanganda banner yuborish va state ni saqlash - YANGILANGAN"""
+    full_text = message.text[2:].strip()  # "🎬 " ni olib tashlaymiz
     user_id = message.from_user.id
     
-    print(f"DEBUG: Maxsus kontent tanlandi: '{full_text}'")
+    print(f"DEBUG: Kino tanlandi: '{full_text}'")
     
-    # Faqat kino nomini olish
+    # Faqat kino nomini olish (aktyor nomini olib tashlash)
     movie_title = full_text
     if " - " in full_text:
         movie_title = full_text.split(" - ")[0].strip()
     
-    # Maxsus kontentlarni olish
-    exclusive_movies = db.get_exclusive_movies()
+    print(f"DEBUG: Qidirilayotgan kino nomi: '{movie_title}'")
+    
+    # Barcha kinolardan qidirish
+    all_movies = db.get_all_movies_sorted()
     selected_movie = None
     
-    for movie in exclusive_movies:
+    for movie in all_movies:
         movie_id, db_title, description, category, file_id, price, is_premium, db_actor, banner_file_id, created_at, added_by = movie
         
+        # Faqat kino nomini solishtiramiz
         if movie_title.lower() == db_title.lower():
             selected_movie = movie
-            print(f"DEBUG: Maxsus kontent topildi: {db_title}")
+            print(f"DEBUG: Kino topildi: {db_title}, ID: {movie_id}, Narx: {price}")
             break
     
     if selected_movie:
-        # Maxsus kontentga kirish huquqini tekshirish
-        has_access = db.check_exclusive_access(user_id)
-        
-        if not has_access:
-            await message.answer(
-                "🔒 **MAXSUS KONTENT**\n\n"
-                "Bu kontent faqat maxsus obuna egalari uchun!\n\n"
-                "💎 **Maxsus kontentlarga ega bo'lish uchun:**\n"
-                "1. To'lov qiling - 50,000 so'm\n"
-                "2. Admin tasdiqlasin\n"
-                "3. Barcha maxsus kontentlar ochilsin\n\n"
-                "💳 To'lov qilish uchun '🎯 Maxsus Kontent (50,000 so'm)' tugmasini bosing.",
-                reply_markup=ReplyKeyboardMarkup(
-                    keyboard=[
-                        [KeyboardButton(text="🎯 Maxsus Kontent (50,000 so'm)")],
-                        [KeyboardButton(text="🔙 Orqaga")]
-                    ],
-                    resize_keyboard=True
-                )
-            )
-            return
-        
         # KINO MA'LUMOTLARINI STATE GA SAQLASH
         await state.update_data(
             movie_id=selected_movie[0],
@@ -2331,10 +2320,22 @@ async def show_exclusive_movie_details(message: types.Message, state: FSMContext
             movie_price=selected_movie[5]
         )
         
+        print(f"DEBUG: State saqlandi - Movie ID: {selected_movie[0]}, Title: {selected_movie[1]}")
+        
         # BANNER YUBORISH
         await send_content_banner(message, selected_movie, user_id)
     else:
-        await message.answer("❌ Maxsus kontent topilmadi.")
+        print(f"DEBUG: Kino topilmadi")
+        await message.answer("❌ Kino topilmadi. Iltimos, qayta urinib ko'ring.")
+        
+@dp.message(F.text == "🔙 Orqaga")
+async def back_from_movie_details(message: types.Message, state: FSMContext):
+    """Kino detallaridan orqaga qaytish"""
+    await state.clear()
+    await message.answer(
+        "Bo'limlarga qaytingiz:",
+        reply_markup=sections_keyboard()
+    )        
         
 # ==============================================================================
 # -*-*- TO'LOV HANDLERLARI -*-*-
