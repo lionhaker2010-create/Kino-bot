@@ -637,7 +637,7 @@ async def process_unblock_user_id(message: types.Message, state: FSMContext):
 
 @dp.message(F.text == "📥 Yuklab olish")
 async def download_movie_handler(message: types.Message, state: FSMContext):
-    """Kino yuklab olish"""
+    """Kino yuklab olish - FAQAT PULLIK KINOLAR UCHUN"""
     # Blok tekshiruvi
     if await check_and_block(message):
         return
@@ -805,6 +805,48 @@ async def start_add_movie(message: types.Message, state: FSMContext):
     else:
         await message.answer("Sizga ruxsat yo'q!")
 
+# -*-*- ASOSIY KATEGORIYA TANLASH -*-*-
+@dp.message(ContentManagementState.waiting_main_category)
+async def process_main_category(message: types.Message, state: FSMContext):
+    if message.text == "🔙 Asosiy Menyu":
+        await message.answer("Amalni tanlang:", reply_markup=content_management_keyboard())
+        await state.clear()
+        return
+        
+    # KATEGORIYA NOMINI TO'G'RI SAQLASH
+    category_mapping = {
+        "🎭 Hollywood": "🎭 Hollywood Kinolari",
+        "🎬 Hind": "🎬 Hind Filmlari", 
+        "🎥 Rus": "🎥 Rus Kinolari",
+        "🎞️ O'zbek": "🎞️ O'zbek Kinolari",
+        "🕌 Islomiy": "🕌 Islomiy Kinolar",
+        "🇹🇷 Turk": "🇹🇷 Turk Kinolari",
+        "👶 Bolalar": "👶 Bolalar Kinolari",
+        "🇰🇷 Koreys": "🇰🇷 Koreys Kinolari"
+    }
+    
+    selected_category = category_mapping.get(message.text, message.text)
+    await state.update_data(main_category=selected_category)
+    
+    print(f"DEBUG: Tanlangan kategoriya: {selected_category}")  # DEBUG
+    
+    # AGAR HOLLYWOOD BO'LSA, ACTOR TANLASH
+    if selected_category == "🎭 Hollywood Kinolari":
+        await message.answer(
+            f"📁 **{selected_category}** bo'limi uchun aktyorni tanlang:",
+            reply_markup=get_category_keyboard("sub", selected_category)
+        )
+        await state.set_state(ContentManagementState.waiting_sub_category)
+    else:
+        # BOSHQA KATEGORIYALARDA TO'GRIDAN-TO'G'RI NARX SO'RASH
+        await message.answer(
+            "💵 Kino narxini kiriting (so'mda):\n0 - Bepul\n30000 - Yuklab olish uchun",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        await state.set_state(ContentManagementState.waiting_movie_price)
+        # Actor nomini None qilib saqlaymiz
+        await state.update_data(sub_category="", actor="")
+
 # -*-*- KINO NOMI QABUL QILISH -*-*-
 @dp.message(ContentManagementState.waiting_movie_title)
 async def process_movie_title(message: types.Message, state: FSMContext):
@@ -821,33 +863,6 @@ async def process_movie_description(message: types.Message, state: FSMContext):
         reply_markup=get_category_keyboard("main")
     )
     await state.set_state(ContentManagementState.waiting_main_category)
-
-# -*-*- ASOSIY KATEGORIYA TANLASH -*-*-
-@dp.message(ContentManagementState.waiting_main_category)
-async def process_main_category(message: types.Message, state: FSMContext):
-    if message.text == "🔙 Asosiy Menyu":
-        await message.answer("Amalni tanlang:", reply_markup=content_management_keyboard())
-        await state.clear()
-        return
-        
-    await state.update_data(main_category=message.text)
-    
-    # AGAR HOLLYWOOD BO'LSA, ACTOR TANLASH
-    if message.text == "🎭 Hollywood Kinolari":
-        await message.answer(
-            f"📁 **{message.text}** bo'limi uchun aktyorni tanlang:",
-            reply_markup=get_category_keyboard("sub", message.text)
-        )
-        await state.set_state(ContentManagementState.waiting_sub_category)
-    else:
-        # BOSHQA KATEGORIYALARDA TO'GRIDAN-TO'G'RI NARX SO'RASH
-        await message.answer(
-            "💵 Kino narxini kiriting (so'mda):\n0 - Bepul\n30000 - Yuklab olish uchun",
-            reply_markup=ReplyKeyboardRemove()
-        )
-        await state.set_state(ContentManagementState.waiting_movie_price)
-        # Actor nomini None qilib saqlaymiz
-        await state.update_data(sub_category="", actor="")
 
 # -*-*- ICHKI KATEGORIYA TANLASH -*-*-
 @dp.message(ContentManagementState.waiting_sub_category)
@@ -1169,17 +1184,17 @@ async def process_unblock_confirmation(message: types.Message, state: FSMContext
     await state.clear()  
 
 # ==============================================================================
-# -*-*- BARCHA KONTENTLAR HANDLERI -*-*-
+# -*-*- BARCHA KONTENTLAR HANDLERI (YANGILANGAN) -*-*-
 # ==============================================================================
 
 @dp.message(F.text == "🎬 Barcha Kontentlar")
 async def all_content(message: types.Message):
-    """Barcha kontentlarni ko'rsatish"""
+    """Barcha kontentlarni ko'rsatish (pullik va bepul)"""
     # Blok tekshiruvi
     if await check_and_block(message):
         return
     
-    # Barcha kinolarni olish (bepullar birinchi)
+    # Barcha kinolarni olish
     movies = db.get_all_movies_sorted()
     
     if not movies:
@@ -1198,8 +1213,18 @@ async def all_content(message: types.Message):
     
     # Bepul kinolar
     for movie in free_movies:
+        # 11 TA QIYMATNI OLISH
         movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
         button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    # Pullik kinolar
+    for movie in paid_movies:
+        # 11 TA QIYMATNI OLISH
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+        button_text = f"💵 {title}"
         if actor_name:
             button_text += f" - {actor_name}"
         keyboard.append([KeyboardButton(text=button_text)])
@@ -1213,7 +1238,7 @@ async def all_content(message: types.Message):
         f"📊 **Jami:** {len(movies)} ta kino\n\n"
         f"Kerakli kinoni tanlang:",
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-    )    
+    )   
     
 # ==============================================================================
 # -*-*- QIDIRUV HANDLERLARI -*-*-
@@ -1310,6 +1335,7 @@ async def process_search(message: types.Message, state: FSMContext):
     
     # Bepul kinolar
     for movie in free_movies:
+        # 11 TA QIYMATNI OLISH
         movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
         button_text = f"🎬 {title}"
         if actor_name:
@@ -1318,6 +1344,7 @@ async def process_search(message: types.Message, state: FSMContext):
     
     # Pullik kinolar
     for movie in paid_movies:
+        # 11 TA QIYMATNI OLISH
         movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
         button_text = f"💵 {title}"
         if actor_name:
@@ -1335,20 +1362,18 @@ async def process_search(message: types.Message, state: FSMContext):
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
     
-    await state.clear()
-
-@dp.message(F.text == "🔍 Qayta qidirish")
-async def search_again(message: types.Message, state: FSMContext):
-    """Qayta qidirish"""
-    await search_handler(message, state)    
+    await state.clear()    
         
 # ==============================================================================
 # -*-*- KONTENT BANNERI YUBORISH (TUZATILGAN) -*-*-
 # ==============================================================================
 
+# -*-*- KONTENT BANNERI YUBORISH (DEBUG QO'SHILGAN) -*-*-
 async def send_content_banner(message: types.Message, movie, user_id):
-    """Kontent bannerini yuborish - FAQAT PULLIK KINOLAR UCHUN TO'LOV TUGMASI"""
+    """Kontent bannerini yuborish - FAQAT PULLIK KINOLARGA YUKLAB OLISH RUHSATI"""
     try:
+        print(f"🚨 DEBUG: send_content_banner chaqirildi")
+        
         # 11 TA USTUNNI OLISH
         movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
         
@@ -1372,45 +1397,62 @@ async def send_content_banner(message: types.Message, movie, user_id):
         
         # HOLATNI ANIQLASH
         can_watch = False
+        can_download = False  # <- YANGI: Yuklab olish ruxsati
         keyboard_buttons = []
         
         if price == 0:
-            # 🆓 BEPUL KINO - TO'LOV TUGMASI YO'Q!
-            caption += "🆓 **Bepul kontent** - Darrov ko'rashingiz mumkin!"
+            # 🆓 BEPUL KINO - FAQAT KO'RISH, YUKLAB OLISH YO'Q!
+            caption += "🆓 **Bepul kontent** - Faqat onlayn tomosha qilish mumkin!\n"
+            caption += "❌ **Yuklab olish mumkin emas** - Faqat pullik kontentlarni yuklab olishingiz mumkin"
             can_watch = True
-            # Bepul kinolar uchun faqat "🔙 Orqaga" tugmasi
+            can_download = False  # Bepul kinolarni yuklab olish MUMKIN EMAS
             keyboard_buttons.append([KeyboardButton(text="🔙 Orqaga")])
             
         elif user_has_purchased:
-            # ✅ SOTIB OLINGAN
-            caption += "✅ **Sotib olingan** - Darrov ko'rashingiz mumkin!"
+            # ✅ SOTIB OLINGAN - YUKLAB OLISH MUMKIN
+            caption += "✅ **Sotib olingan** - Yuklab olishingiz mumkin!"
             can_watch = True
-            # Sotib olingan uchun faqat "🔙 Orqaga" 
+            can_download = True  # Sotib olingan kinolarni yuklab olish MUMKIN
+            keyboard_buttons.append([KeyboardButton(text="📥 Yuklab olish")])
             keyboard_buttons.append([KeyboardButton(text="🔙 Orqaga")])
             
         elif is_premium_user:
-            # 👑 PREMIUM
-            caption += "👑 **Premium** - Darrov ko'rashingiz mumkin!"
+            # 👑 PREMIUM - YUKLAB OLISH MUMKIN
+            caption += "👑 **Premium** - Yuklab olishingiz mumkin!"
             can_watch = True
-            # Premium uchun faqat "🔙 Orqaga"
+            can_download = True  # Premium foydalanuvchilar yuklab olishi MUMKIN
+            keyboard_buttons.append([KeyboardButton(text="📥 Yuklab olish")])
             keyboard_buttons.append([KeyboardButton(text="🔙 Orqaga")])
             
         else:
             # 🔒 PULLIK KINO - FAQAT SHUNDA TO'LOV TUGMASI
             caption += "🔒 **Pullik kontent** - Yuklab olish uchun to'lov qiling"
             can_watch = False
-            # FAQAT PULLIK KINOLAR UCHUN TO'LOV TUGMASI
+            can_download = False  # To'lov qilinmaguncha yuklab olish MUMKIN EMAS
             keyboard_buttons.append([KeyboardButton(text="💳 Yuklab olish uchun to'lash")])
             keyboard_buttons.append([KeyboardButton(text="🔙 Orqaga")])
         
-        print(f"🚨 DEBUG: Ko'rish ruxsati: {can_watch}, Narx: {price}")
+        print(f"🚨 DEBUG: Ko'rish ruxsati: {can_watch}, Yuklab olish ruxsati: {can_download}")
         
         # 1. ALOHIDA BANNER RASMI YUBORISH
         if banner_file_id:
+            print(f"🚨 DEBUG: Banner yuborilmoqda...")
             await message.answer_photo(
                 photo=banner_file_id,
                 caption=caption
             )
+            print(f"🚨 DEBUG: Banner yuborildi")
+        else:
+            print(f"🚨 DEBUG: Banner file_id yo'q!")
+            # Agar banner yo'q bo'lsa, faqat matn yuboramiz
+            await message.answer(
+                caption,
+                reply_markup=ReplyKeyboardMarkup(
+                    keyboard=keyboard_buttons,
+                    resize_keyboard=True
+                )
+            )
+            return
         
         # 2. VIDEO YUBORISH - FAQAT CAN_WATCH = TRUE BO'LSA
         if can_watch:
@@ -1419,18 +1461,20 @@ async def send_content_banner(message: types.Message, movie, user_id):
             # Video yuborish
             await message.answer_video(
                 video=file_id,
-                caption="🎬 **Video** - Play tugmasini bosing va tomosha qiling!",
+                caption="🎬 **Video** - Play tugmasini bosing va tomosha qiling!" + 
+                       ("\n\n📥 **Yuklab olish uchun yuqoridagi tugmani bosing**" if can_download else "\n\n❌ **Yuklab olish mumkin emas** - Faqat pullik kontentlarni yuklab olishingiz mumkin"),
                 reply_markup=ReplyKeyboardMarkup(
                     keyboard=keyboard_buttons,
                     resize_keyboard=True
                 )
             )
+            print(f"🚨 DEBUG: Video yuborildi")
         else:
             print(f"🚨 DEBUG: FAQAT PREVIEW YUBORILMOQDA")
             # Pullik kontent - FAQAT XABAR, VIDEO EMAS!
             await message.answer(
                 "🔒 **PULLIK KONTENT**\n\n"
-                "Bu kino pullik! To'liq ko'rish uchun quyidagi tugma orqali to'lov qiling:",
+                "Bu kino pullik! To'liq ko'rish va yuklab olish uchun quyidagi tugma orqali to'lov qiling:",
                 reply_markup=ReplyKeyboardMarkup(
                     keyboard=keyboard_buttons,
                     resize_keyboard=True
@@ -1440,8 +1484,10 @@ async def send_content_banner(message: types.Message, movie, user_id):
         print(f"🚨 DEBUG: Jarayon tugadi")
         
     except Exception as e:
-        print(f"🚨 DEBUG: Xatolik: {e}")
-        await message.answer(f"❌ Xatolik: {e}")
+        print(f"🚨 DEBUG: Xatolik: {str(e)}")
+        import traceback
+        print(f"🚨 DEBUG: Xatolik tafsilotlari: {traceback.format_exc()}")
+        await message.answer(f"❌ Xatolik: {str(e)}")
         
 # -*-*- KINO BANNERI QABUL QILISH -*-*-
 @dp.message(ContentManagementState.waiting_movie_banner, F.photo)
@@ -1473,7 +1519,16 @@ async def process_movie_file(message: types.Message, state: FSMContext):
             await state.clear()
             return
     
-    full_category = f"{data['main_category']} - {data['sub_category']}"
+    # KATEGORIYANI TO'G'RI SHAKLLANTIRISH
+    main_category = data['main_category']
+    sub_category = data['sub_category']
+    
+    if sub_category:
+        full_category = f"{main_category} - {sub_category}"
+    else:
+        full_category = main_category
+    
+    print(f"DEBUG: Kino kategoriyasi: {full_category}")  # DEBUG
     
     # Kino qo'shish (banner bilan)
     movie_id = db.add_movie(
@@ -1485,7 +1540,7 @@ async def process_movie_file(message: types.Message, state: FSMContext):
         is_premium=(data['price'] > 0),
         added_by=message.from_user.id,
         actor_name=data['actor'],
-        banner_file_id=data['banner_file_id']  # <- BANNER QO'SHILDI
+        banner_file_id=data['banner_file_id']
     )
     
     await state.clear()
@@ -1710,10 +1765,10 @@ async def process_confirmation(message: types.Message, state: FSMContext):
 def premium_services_keyboard():
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="💎 Premium Obuna"), KeyboardButton(text="🎯 Maxsus Kontentlar")],
-            [KeyboardButton(text="📥 Yuklab Olish"), KeyboardButton(text="🔧 Shaxsiy Qo'llab-quvvatlash")],
-            [KeyboardButton(text="💳 To'lov qilish"), KeyboardButton(text="📋 To'lov Qo'llanmasi")],
-            [KeyboardButton(text="🔍 Obunani tekshirish"), KeyboardButton(text="📞 Admin bilan bog'lanish")],
+            [KeyboardButton(text="💎 Premium Obuna"), KeyboardButton(text="📥 Yuklab Olish")],
+            [KeyboardButton(text="🎯 Maxsus Kontentlar"), KeyboardButton(text="🔧 Shaxsiy Qo'llab-quvvatlash")],
+            [KeyboardButton(text="💳 To'lov qilish"), KeyboardButton(text="📞 Admin bilan bog'lanish")],
+            [KeyboardButton(text="🔍 Obunani tekshirish"), KeyboardButton(text="📋 To'lov Qo'llanmasi")],
             [KeyboardButton(text="🔙 Asosiy Menyu")],
         ],
         resize_keyboard=True
@@ -1728,6 +1783,20 @@ def payment_keyboard():
         ],
         resize_keyboard=True
     )
+    
+def create_movie_keyboard(movies, back_button_text="🔙 Bo'limlarga qaytish"):
+    """Kinolardan klaviatura yaratish (11 ta qiymat bilan ishlaydi)"""
+    keyboard = []
+    for movie in movies:
+        # 11 TA QIYMATNI OLISH
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text=back_button_text)])
+    return keyboard    
 
 # ==============================================================================
 # -*-*- START VA RO'YXATDAN O'TISH HANDLERLARI -*-*-
@@ -1861,65 +1930,6 @@ async def process_phone(message: types.Message, state: FSMContext):
     
     await state.clear()
 
-# ==============================================================================
-# -*-*- ASOSIY MENYU HANDLERLARI -*-*-
-# ==============================================================================
-
-# ==============================================================================
-# -*-*- BARCHA KONTENTLAR HANDLERI (YANGILANGAN) -*-*-
-# ==============================================================================
-
-@dp.message(F.text == "🎬 Barcha Kontentlar")
-async def all_content(message: types.Message):
-    """Barcha kontentlarni ko'rsatish (pullik va bepul)"""
-    # Blok tekshiruvi
-    if await check_and_block(message):
-        return
-    
-    # Barcha kinolarni olish
-    movies = db.get_all_movies_sorted()
-    
-    if not movies:
-        await message.answer(
-            "❌ Hozircha hech qanday kontent mavjud emas.",
-            reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
-        )
-        return
-    
-    # Kontentlarni guruhlash
-    free_movies = [m for m in movies if m[5] == 0]  # price = 0
-    paid_movies = [m for m in movies if m[5] > 0]   # price > 0
-    
-    # Klaviatura yaratish
-    keyboard = []
-    
-    # Bepul kinolar
-    for movie in free_movies:
-        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
-        button_text = f"🎬 {title}"
-        if actor_name:
-            button_text += f" - {actor_name}"
-        keyboard.append([KeyboardButton(text=button_text)])
-    
-    # Pullik kinolar
-    for movie in paid_movies:
-        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
-        button_text = f"💵 {title}"
-        if actor_name:
-            button_text += f" - {actor_name}"
-        keyboard.append([KeyboardButton(text=button_text)])
-    
-    keyboard.append([KeyboardButton(text="🔙 Asosiy Menyu")])
-    
-    await message.answer(
-        f"🎬 **Barcha Kontentlar**\n\n"
-        f"🆓 **Bepul kinolar:** {len(free_movies)} ta\n"
-        f"💵 **Pullik kinolar:** {len(paid_movies)} ta\n"
-        f"📊 **Jami:** {len(movies)} ta kino\n\n"
-        f"Kerakli kinoni tanlang:",
-        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-    )
-
 @dp.message(F.text == "📁 Bo'limlar")
 async def sections(message: types.Message):
     await message.answer(
@@ -1951,7 +1961,119 @@ async def search_handler(message: types.Message, state: FSMContext):
 # ==============================================================================
 # -*-*- BO'LIMLAR HANDLERLARI -*-*-
 # ==============================================================================
-        
+   
+# -*-*- BARCHA BO'LIMLAR UCHUN YAGONA HANDLER -*-*-
+async def show_category_movies(message: types.Message, category_name: str):
+    """Har qanday kategoriya uchun kinolarni ko'rsatish"""
+    print(f"DEBUG: {category_name} kategoriyasi bosildi")
+    
+    # Kategoriyadagi barcha kinolarni olish
+    movies = db.get_movies_by_category(category_name)
+    
+    print(f"DEBUG: '{category_name}' dagi kinolar soni: {len(movies)}")
+    
+    if not movies:
+        await message.answer(
+            f"❌ Hozircha {category_name} mavjud emas.",
+            reply_markup=get_category_keyboard("main")
+        )
+        return
+    
+    # Kinolarni narx bo'yicha guruhlash
+    free_movies = [m for m in movies if m[5] == 0]
+    paid_movies = [m for m in movies if m[5] > 0]
+    
+    keyboard = []
+    
+    # Bepul kinolar
+    for movie in free_movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+        button_text = f"🎬 {title}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    # Pullik kinolar
+    for movie in paid_movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+        button_text = f"💵 {title}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Bo'limlarga qaytish")])
+    
+    await message.answer(
+        f"{category_name}\n\n"
+        f"🆓 Bepul: {len(free_movies)} ta\n"
+        f"💵 Pullik: {len(paid_movies)} ta\n"
+        f"📊 Jami: {len(movies)} ta kino\n\n"
+        f"Kerakli kinoni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )
+
+# BARCHA BO'LIMLAR UCHUN HANDLERLAR
+@dp.message(F.text == "🎬 Hind Filmlari")
+async def show_indian_movies(message: types.Message):
+    await show_category_movies(message, "🎬 Hind Filmlari")
+
+@dp.message(F.text == "🎥 Rus Kinolari")
+async def show_russian_movies(message: types.Message):
+    await show_category_movies(message, "🎥 Rus Kinolari")
+
+@dp.message(F.text == "🎞️ O'zbek Kinolari")
+async def show_uzbek_movies(message: types.Message):
+    await show_category_movies(message, "🎞️ O'zbek Kinolari")
+
+@dp.message(F.text == "🕌 Islomiy Kinolar")
+async def show_islamic_movies(message: types.Message):
+    await show_category_movies(message, "🕌 Islomiy Kinolar")
+
+@dp.message(F.text == "🇹🇷 Turk Kinolari")
+async def show_turkish_movies(message: types.Message):
+    await show_category_movies(message, "🇹🇷 Turk Kinolari")
+
+@dp.message(F.text == "👶 Bolalar Kinolari")
+async def show_kids_movies(message: types.Message):
+    await show_category_movies(message, "👶 Bolalar Kinolari")
+
+@dp.message(F.text == "🇰🇷 Koreys Kinolari")
+async def show_korean_movies(message: types.Message):
+    await show_category_movies(message, "🇰🇷 Koreys Kinolari")
+    
+# -*-*- BAZADAGI BARCHA KINOLARNI TEKSHIRISH -*-*-
+@dp.message(F.text == "🔍 Kinolarni tekshirish")
+async def check_all_movies_debug(message: types.Message):
+    """Barcha kinolarni kategoriya bo'yicha tekshirish"""
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        try:
+            all_movies = db.get_all_movies()
+            
+            if not all_movies:
+                await message.answer("❌ Hozircha hech qanday kino mavjud emas.")
+                return
+            
+            # Kategoriya bo'yicha guruhlash
+            categories = {}
+            for movie in all_movies:
+                movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+                
+                if category not in categories:
+                    categories[category] = []
+                categories[category].append(title)
+            
+            response = "📊 **Kinolarning kategoriya bo'yicha taqsimlanishi:**\n\n"
+            for category, movies in categories.items():
+                response += f"**{category}:** {len(movies)} ta\n"
+                for movie in movies:
+                    response += f"  • {movie}\n"
+                response += "\n"
+            
+            response += f"📈 **Jami:** {len(all_movies)} ta kino"
+            
+            await message.answer(response)
+            
+        except Exception as e:
+            await message.answer(f"❌ Xatolik: {e}")
+    else:
+        await message.answer("Sizga ruxsat yo'q!")    
+   
 # ==============================================================================
 # -*-*- YAGONA BO'LIM HANDLERLARI -*-*-
 # ==============================================================================
@@ -2151,37 +2273,57 @@ async def process_delete_confirmation(message: types.Message, state: FSMContext)
     await state.clear()
 
 # ==============================================================================
-# -*-*- KINO TANLANGANDA VIDEO YUBORISH (YANGILANGAN) -*-*-
+# -*-*- MAXSUS KONTENTLAR HANDLERI -*-*-
 # ==============================================================================
-@dp.message(F.text.startswith("🎬") | F.text.startswith("💵"))
-async def show_movie_details_fixed(message: types.Message, state: FSMContext):
-    """Kino tanlanganda banner yuborish (🎬 yoki 💵 bilan boshlanganlar uchun)"""
-    full_text = message.text[2:].strip()  # "🎬 " yoki "💵 " ni olib tashlaymiz
+
+@dp.message(F.text.startswith("🎯"))
+async def show_exclusive_movie_details(message: types.Message, state: FSMContext):
+    """Maxsus kontentni ko'rsatish"""
+    full_text = message.text[2:].strip()  # "🎯 " ni olib tashlaymiz
     user_id = message.from_user.id
     
-    print(f"DEBUG: Kino tanlandi: '{message.text}' -> '{full_text}'")
+    print(f"DEBUG: Maxsus kontent tanlandi: '{full_text}'")
     
-    # Faqat kino nomini olish (aktyor nomini olib tashlash)
+    # Faqat kino nomini olish
     movie_title = full_text
     if " - " in full_text:
         movie_title = full_text.split(" - ")[0].strip()
     
-    print(f"DEBUG: Qidirilayotgan kino nomi: '{movie_title}'")
-    
-    # Barcha kinolardan qidirish
-    all_movies = db.get_all_movies_sorted()
+    # Maxsus kontentlarni olish
+    exclusive_movies = db.get_exclusive_movies()
     selected_movie = None
     
-    for movie in all_movies:
+    for movie in exclusive_movies:
         movie_id, db_title, description, category, file_id, price, is_premium, db_actor, banner_file_id, created_at, added_by = movie
         
-        # Kino nomini solishtiramiz (qisman moslik)
-        if movie_title.lower() in db_title.lower():
+        if movie_title.lower() == db_title.lower():
             selected_movie = movie
-            print(f"DEBUG: Kino topildi: {db_title}, ID: {movie_id}, Narx: {price}")
+            print(f"DEBUG: Maxsus kontent topildi: {db_title}")
             break
     
     if selected_movie:
+        # Maxsus kontentga kirish huquqini tekshirish
+        has_access = db.check_exclusive_access(user_id)
+        
+        if not has_access:
+            await message.answer(
+                "🔒 **MAXSUS KONTENT**\n\n"
+                "Bu kontent faqat maxsus obuna egalari uchun!\n\n"
+                "💎 **Maxsus kontentlarga ega bo'lish uchun:**\n"
+                "1. To'lov qiling - 50,000 so'm\n"
+                "2. Admin tasdiqlasin\n"
+                "3. Barcha maxsus kontentlar ochilsin\n\n"
+                "💳 To'lov qilish uchun '🎯 Maxsus Kontent (50,000 so'm)' tugmasini bosing.",
+                reply_markup=ReplyKeyboardMarkup(
+                    keyboard=[
+                        [KeyboardButton(text="🎯 Maxsus Kontent (50,000 so'm)")],
+                        [KeyboardButton(text="🔙 Orqaga")]
+                    ],
+                    resize_keyboard=True
+                )
+            )
+            return
+        
         # KINO MA'LUMOTLARINI STATE GA SAQLASH
         await state.update_data(
             movie_id=selected_movie[0],
@@ -2189,13 +2331,10 @@ async def show_movie_details_fixed(message: types.Message, state: FSMContext):
             movie_price=selected_movie[5]
         )
         
-        print(f"DEBUG: State saqlandi - Movie ID: {selected_movie[0]}, Title: {selected_movie[1]}")
-        
         # BANNER YUBORISH
         await send_content_banner(message, selected_movie, user_id)
     else:
-        print(f"DEBUG: Kino topilmadi: '{movie_title}'")
-        await message.answer("❌ Kino topilmadi. Iltimos, qayta urinib ko'ring.")
+        await message.answer("❌ Maxsus kontent topilmadi.")
         
 # ==============================================================================
 # -*-*- TO'LOV HANDLERLARI -*-*-
@@ -2596,7 +2735,8 @@ async def show_indian_series(message: types.Message):
     
     keyboard = []
     for movie in movies:
-        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        # 11 TA QIYMATNI OLISH
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
         button_text = f"🎬 {title}"
         if actor_name:
             button_text += f" - {actor_name}"
@@ -2712,7 +2852,8 @@ async def show_uzbek_series(message: types.Message):
     
     keyboard = []
     for movie in movies:
-        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        # 11 TA QIYMATNI OLISH
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
         button_text = f"🎬 {title}"
         if actor_name:
             button_text += f" - {actor_name}"
@@ -2770,7 +2911,8 @@ async def show_islamic_series(message: types.Message):
     
     keyboard = []
     for movie in movies:
-        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        # 11 TA QIYMATNI OLISH
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
         button_text = f"🎬 {title}"
         if actor_name:
             button_text += f" - {actor_name}"
@@ -2828,7 +2970,8 @@ async def show_turkish_series(message: types.Message):
     
     keyboard = []
     for movie in movies:
-        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        # 11 TA QIYMATNI OLISH
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
         button_text = f"🎬 {title}"
         if actor_name:
             button_text += f" - {actor_name}"
@@ -2886,7 +3029,8 @@ async def show_kids_cartoons(message: types.Message):
     
     keyboard = []
     for movie in movies:
-        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        # 11 TA QIYMATNI OLISH
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
         button_text = f"🎬 {title}"
         if actor_name:
             button_text += f" - {actor_name}"
@@ -2930,6 +3074,7 @@ async def show_korean_movies(message: types.Message):
         reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     )
 
+# -*-*- KOREYS SERIALLARI -*-*-
 @dp.message(F.text == "📡 Koreys Seriallari")
 async def show_korean_series(message: types.Message):
     """Koreys seriallarini ko'rsatish"""
@@ -2944,7 +3089,8 @@ async def show_korean_series(message: types.Message):
     
     keyboard = []
     for movie in movies:
-        movie_id, title, description, category, file_id, price, is_premium, actor_name, created_at, added_by = movie
+        # 11 TA QIYMATNI OLISH
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
         button_text = f"🎬 {title}"
         if actor_name:
             button_text += f" - {actor_name}"
@@ -3175,67 +3321,59 @@ async def back_to_main(message: types.Message):
 # -*-*- PULLIK HIZMATLAR HANDLERLARI -*-*-
 # ==============================================================================
 
+# -*-*- PREMIUM OBUNA SOTIB OLISH -*-*-
 @dp.message(F.text == "💎 Premium Obuna")
-async def premium_subscription(message: types.Message):
+async def premium_subscription_info(message: types.Message):
+    """Premium obuna ma'lumotlari"""
     await message.answer(
-        "💎 **Premium Obuna - Obuna Bo'lish Tartibi**\n\n"
-        
-        "📋 **OBUNA BO'LISH UCHUN QILISH KERAK:**\n"
-        "1. 💳 **To'lov qiling** - 130,000 so'm\n"
-        "   • Karta: 9860 3501 4890 3205 (HUMO)\n"
-        "   • Click: +998888882505\n\n"
-        
-        "2. 📸 **Chekni yuboring**\n"
-        "   • To'lov chekini (screenshot)\n"
-        "   • @Operator_Kino_1985 ga yuboring\n\n"
-        
-        "3. ⏳ **Kuting**\n"
-        "   • 1 soat ichida obuna faollashtiriladi\n"
-        "   • Barcha kontentlar ochiladi\n\n"
-        
-        "4. 🎬 **Foydalaning**\n"
-        "   • Barcha kinolar va seriallar\n"
-        "   • HD sifatda tomosha qiling\n"
-        "   • Yuklab oling\n\n"
-        
-        "✅ **OBUNA BO'LGACH:**\n"
-        "• Barcha bo'limlar ochiladi\n"
-        "• Cheksiz ko'rish imkoniyati\n"
-        "• Yuklab olish huquqi\n"
-        "• Yangi kontentlar avtomatik qo'shiladi\n\n"
-        
-        "💰 **Narxi:** 130,000 so'm/oy\n"
-        "📞 **Admin:** @Operator_Kino_1985\n"
-        "📱 **Tel:** +998888882505"
-    )
-
-# 🔥 YANGI TO'LOV HANDLERLARI
-@dp.message(F.text == "💎 Premium Obuna (130,000 so'm)")
-async def start_premium_payment(message: types.Message, state: FSMContext):
-    await state.update_data(
-        service_type="premium",
-        service_name="Premium Obuna",
-        amount=130000,
-        description="1 oylik premium obuna - barcha kinolar ochiladi"
-    )
-    await message.answer(
-        "💎 **Premium Obuna To'lovi**\n\n"
-        "🎯 **Xizmat:** 1 oylik Premium Obuna\n"
-        "💵 **Narx:** 130,000 so'm\n"
+        "💎 **Premium Obuna - 130,000 so'm/oy**\n\n"
         "✅ **Afzalliklar:**\n"
-        "• Barcha kinolar va seriallar\n"
+        "• Barcha kinolar va seriallar\n" 
         "• Yuklab olish huquqi\n"
-        "• HD 1080p sifat\n\n"
-        "💳 **To'lov qilish uchun tugmani bosing:**",
+        "• HD 1080p sifat\n"
+        "• Yangi kontentlar avtomatik ochiladi\n\n"
+        "💳 **To'lov usullari:**\n"
+        "• Karta: 9860 3501 4890 3205\n"
+        "• Click: +998888882505\n\n"
+        "📞 **Admin:** @Operator_Kino_1985\n\n"
+        "To'lov qilish uchun quyidagi tugmani bosing:",
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
                 [KeyboardButton(text="💳 Premium uchun to'lash")],
-                [KeyboardButton(text="🔙 Orqaga")]
+                [KeyboardButton(text="📞 Admin bilan bog'lanish")],
+                [KeyboardButton(text="🔙 Pullik Hizmatlarga qaytish")]
             ],
             resize_keyboard=True
         )
     )
 
+@dp.message(F.text == "💳 Premium uchun to'lash")
+async def start_premium_payment(message: types.Message, state: FSMContext):
+    """Premium obuna uchun to'lovni boshlash"""
+    await state.update_data(
+        service_type="premium",
+        service_name="Premium Obuna", 
+        amount=130000,
+        description="1 oylik premium obuna - barcha kinolar ochiladi"
+    )
+    
+    await message.answer(
+        "💳 **Premium Obuna To'lovi**\n\n"
+        "🎯 **Xizmat:** Premium Obuna\n"
+        "📝 **Tavsif:** 1 oylik premium obuna\n" 
+        "💵 **Summa:** 130,000 so'm\n\n"
+        "🏦 **To'lov usullari:**\n"
+        "• 💳 Karta: 9860 3501 4890 3205 (HUMO)\n"
+        "• 📱 Click: +998888882505\n\n"
+        "📸 **To'lov qilgach, chekni yuboring:**",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="📸 Chek yuborish")],
+                [KeyboardButton(text="🔙 Orqaga")]
+            ],
+            resize_keyboard=True
+        )
+    )
 @dp.message(F.text == "📥 Yuklab Olish (30,000 so'm)")
 async def start_download_payment(message: types.Message, state: FSMContext):
     await state.update_data(
@@ -3313,6 +3451,70 @@ async def start_support_payment(message: types.Message, state: FSMContext):
             resize_keyboard=True
         )
     )
+    
+# ==============================================================================
+# -*-*- MAXSUS KONTENTLAR BO'LIMI -*-*-
+# ==============================================================================
+
+@dp.message(F.text == "🎯 Maxsus Kontentlar")
+async def show_exclusive_content(message: types.Message):
+    """Maxsus kontentlar bo'limini ko'rsatish"""
+    # Blok tekshiruvi
+    if await check_and_block(message):
+        return
+    
+    # Maxsus kontentlar ro'yxati
+    exclusive_movies = db.get_exclusive_movies()
+    
+    if not exclusive_movies:
+        await message.answer(
+            "🎯 **Maxsus Kontentlar**\n\n"
+            "Hozircha maxsus kontentlar mavjud emas.\n\n"
+            "💎 **Maxsus kontentlarga ega bo'lish uchun:**\n"
+            "1. To'lov qiling - 50,000 so'm\n"
+            "2. Admin tasdiqlasin\n"
+            "3. Maxsus kontentlar ochilsin\n\n"
+            "💳 To'lov qilish uchun '🎯 Maxsus Kontent (50,000 so'm)' tugmasini bosing.",
+            reply_markup=premium_services_keyboard()
+        )
+        return
+    
+    keyboard = []
+    for movie in exclusive_movies:
+        movie_id, title, description, category, file_id, price, is_premium, actor_name, banner_file_id, created_at, added_by = movie
+        button_text = f"🎯 {title}"
+        if actor_name:
+            button_text += f" - {actor_name}"
+        keyboard.append([KeyboardButton(text=button_text)])
+    
+    keyboard.append([KeyboardButton(text="🔙 Pullik Hizmatlarga qaytish")])
+    
+    await message.answer(
+        "🎯 **Maxsus Kontentlar**\n\n"
+        "Bu yerda eksklyuziv kinolar va maxsus kontentlar mavjud:\n\n"
+        "• Rejissor versiyalari\n"
+        "• Sahna ortidagi lavhalar\n"
+        "• Aktyorlar intervyulari\n"
+        "• Cheklangan nashrlar\n\n"
+        "Kerakli kontentni tanlang:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    )    
+    
+# -*-*- MAXSUS KONTENT QO'SHISH -*-*-
+@dp.message(F.text == "🎯 Maxsus Kontent Qo'shish")
+async def start_add_exclusive_content(message: types.Message, state: FSMContext):
+    """Maxsus kontent qo'shishni boshlash"""
+    if admin_manager.is_admin(message.from_user.id, message.from_user.username):
+        await message.answer(
+            "🎯 **Maxsus Kontent Qo'shish**\n\n"
+            "Maxsus kontent nomini kiriting:",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        await state.set_state(ContentManagementState.waiting_movie_title)
+        # Maxsus kontent ekanligini belgilash
+        await state.update_data(is_exclusive=True)
+    else:
+        await message.answer("Sizga ruxsat yo'q!")    
 
 @dp.message(F.text.contains("to'lash"))
 async def process_payment_selection(message: types.Message, state: FSMContext):
@@ -3345,12 +3547,14 @@ async def process_payment_selection(message: types.Message, state: FSMContext):
         )
     )
 
+# -*-*- CHEK YUBORISH VA ADMIN TASDIQLASH -*-*-
 @dp.message(F.text == "📸 Chek yuborish")
-async def request_receipt(message: types.Message, state: FSMContext):
+async def request_receipt_premium(message: types.Message, state: FSMContext):
+    """Premium obuna uchun chek so'rash"""
     data = await state.get_data()
     
     if not data:
-        await message.answer("❌ Avval to'lov xizmatini tanlang!", reply_markup=premium_services_keyboard())
+        await message.answer("❌ Avval to'lov xizmatini tanlang!")
         return
         
     service_name = data.get('service_name')
@@ -3358,15 +3562,114 @@ async def request_receipt(message: types.Message, state: FSMContext):
     
     await message.answer(
         f"📸 **Chek Yuborish**\n\n"
-        f"🎯 **Xizmat:** {service_name}\n"
+        f"🎯 **Xizmat:** {service_name}\n" 
         f"💵 **Summa:** {amount:,} so'm\n\n"
         f"To'lov chekini (screenshot) yuboring:\n"
         f"• Yorqin va o'qiladigan bo'lsin\n"
         f"• Summa va vaqt ko'rinsin\n"
-        f"• Karta raqami/to'lov raqami ko'rinsin",
+        f"• Karta raqami/to'lov raqami ko'rinsin\n\n"
+        f"⚠️ **Eslatma:** Chekni yuborgach, admin tekshiradi va obuna faollashtiriladi.",
         reply_markup=ReplyKeyboardRemove()
     )
     await state.set_state(PaymentState.waiting_payment_receipt)
+
+@dp.message(PaymentState.waiting_payment_receipt, F.photo)
+async def process_premium_payment_receipt(message: types.Message, state: FSMContext):
+    """Premium obuna chekini qabul qilish"""
+    receipt_file_id = message.photo[-1].file_id
+    
+    # State dan ma'lumotlarni olish
+    data = await state.get_data()
+    service_type = data.get('service_type')
+    service_name = data.get('service_name')
+    amount = data.get('amount')
+    description = data.get('description')
+    
+    if not service_type:
+        await message.answer("❌ Xatolik! Ma'lumotlar topilmadi.")
+        await state.clear()
+        return
+    
+    # Loading xabarini yuborish
+    loading_msg = await message.answer("🔄 **To'lov cheki tekshirilmoqda...**")
+    
+    try:
+        # To'lovni bazaga yozish
+        payment_id = db.add_payment(
+            user_id=message.from_user.id,
+            amount=amount,
+            service_type=service_type,
+            service_name=service_name,
+            description=description,
+            receipt_file_id=receipt_file_id
+        )
+        
+        # Foydalanuvchi ma'lumotlari
+        user_info = db.get_user(message.from_user.id)
+        user_name = user_info[2] if user_info else "Noma'lum"
+        
+        # Admin ga bildirishnoma
+        try:
+            await bot.send_photo(
+                chat_id=ADMIN_ID,
+                photo=receipt_file_id,
+                caption=(
+                    f"💰 **Yangi Premium Obuna So'rovi!**\n\n"
+                    f"👤 **Foydalanuvchi:** {user_name}\n"
+                    f"🆔 **User ID:** {message.from_user.id}\n"
+                    f"🎯 **Xizmat:** {service_name}\n"
+                    f"💵 **Summa:** {amount:,} so'm\n"
+                    f"📝 **Tavsif:** {description}\n"
+                    f"🆔 **To'lov ID:** {payment_id}\n\n"
+                    f"**Tasdiqlash uchun quyidagi tugmalardan birini bosing:**"
+                ),
+                reply_markup=ReplyKeyboardMarkup(
+                    keyboard=[
+                        [KeyboardButton(text=f"✅ Tasdiqlash #{payment_id}")],
+                        [KeyboardButton(text=f"❌ Rad etish #{payment_id}")],
+                        [KeyboardButton(text="💰 To'lovlarni ko'rish")]
+                    ],
+                    resize_keyboard=True
+                )
+            )
+            admin_notified = True
+        except Exception as e:
+            print(f"❌ Admin ga xabar yuborishda xatolik: {e}")
+            admin_notified = False
+        
+        # Foydalanuvchiga javob
+        if admin_notified:
+            await loading_msg.edit_text(
+                "✅ **To'lov cheki qabul qilindi!**\n\n"
+                f"🎯 **Xizmat:** {service_name}\n"
+                f"💵 **Summa:** {amount:,} so'm\n"
+                f"🆔 **To'lov ID:** {payment_id}\n\n"
+                f"⏳ **Admin tomonidan tekshirilmoqda...**\n"
+                f"📞 **Agar 1 soat ichida javob bo'lmasa, @Operator_Kino_1985 ga murojaat qiling.**"
+            )
+        else:
+            await loading_msg.edit_text(
+                "⚠️ **Chek qabul qilindi, lekin admin ga xabar yuborish muvaffaqiyatsiz!**\n\n"
+                f"Iltimos, to'g'ridan-to'g'ri @Operator_Kino_1985 ga yuboring:\n"
+                f"• To'lov cheki\n"
+                f"• To'lov ID: {payment_id}\n"
+                f"• Xizmat turi: {service_name}"
+            )
+        
+    except Exception as e:
+        await loading_msg.edit_text(
+            f"❌ **Xatolik yuz berdi!**\n\n"
+            f"Xatolik: {str(e)}\n\n"
+            f"Iltimos, qayta urinib ko'ring."
+        )
+    
+    # Foydalanuvchiga asosiy menyuni qaytarish
+    await message.answer(
+        "Asosiy menyuga qaytingiz:",
+        reply_markup=main_menu_keyboard(message.from_user.id, message.from_user.username)
+    )
+    
+    await state.clear()
 
 # -*-*- KLAVIATURA FUNKSIYASI -*-*-
 def premium_services_keyboard():
@@ -3470,6 +3773,17 @@ async def check_subscription(message: types.Message):
             "3. Kutib turing\n\n"
             "📞 Admin: @Operator_Kino_1985"
         )
+        
+# -*-*- MAXSUS KONTENTLARNI TEKSHIRISH -*-*-
+
+async def check_exclusive_access(user_id, movie_category=None):
+    """Maxsus kontentlarga kirish huquqini tekshirish"""
+    # Agar kategoriya "Maxsus" bo'lsa, tekshiramiz
+    if movie_category and ("Maxsus" in movie_category or "Exclusive" in movie_category):
+        has_access = db.check_exclusive_access(user_id)
+        print(f"🛠️ DEBUG: Exclusive access check - User: {user_id}, Access: {has_access}")
+        return has_access
+    return True  # Boshqa kategoriyalar uchun cheklov yo'q        
 
 @dp.message(F.text == "🎁 Aksiya")
 async def special_offer(message: types.Message):
@@ -3608,8 +3922,8 @@ async def click_payment(message: types.Message):
 # -*-*- YANGI TO'LOV HANDLERLARI -*-*-
 
 @dp.message(F.text.startswith("✅ Tasdiqlash #"))
-async def confirm_payment(message: types.Message):
-    """To'lovni tasdiqlash va xizmatni faollashtirish"""
+async def confirm_payment_complete(message: types.Message):
+    """To'lovni to'liq tasdiqlash"""
     try:
         payment_id = int(message.text.split("#")[1])
         
@@ -3660,51 +3974,115 @@ async def confirm_payment(message: types.Message):
             )
             
         elif service_type == "exclusive":
-            # Maxsus kontent ochish
+            # Maxsus kontentlar uchun ruxsat berish (30 kun)
+            db.add_user_exclusive_access(user_id, 30)
             success_message = (
                 "✅ **Maxsus kontentlar ochildi!**\n\n"
-                "🎯 Endi sizda quyidagi imkoniyatlar mavjud:\n"
+                "🎉 Tabriklaymiz! Sizga 30 kunlik maxsus kontentlar ruxsati berildi.\n\n"
+                "📋 **Ochilgan imkoniyatlar:**\n"
                 "• Eksklyuziv kinolar\n"
                 "• Rejissor versiyalari\n"
                 "• Sahna ortidagi lavhalar\n"
-                "• Aktyorlar intervyulari\n\n"
-                "📁 '🎯 Maxsus Kontentlar' bo'limiga o'ting"
-            )
-            
-        elif service_type == "support":
-            # Qo'llab-quvvatlash aktivlashtirish
-            success_message = (
-                "✅ **Shaxsiy qo'llab-quvvatlash faollashtirildi!**\n\n"
-                "🔧 Endi siz quyidagi xizmatlardan foydalanishingiz mumkin:\n"
-                "• Shaxsiy maslahat\n"
-                "• Texnik yordam\n"
-                "• Maxsus so'rovlar\n"
-                "• 24/7 javob\n\n"
-                "📞 Admin: @Operator_Kino_1985"
+                "• Aktyorlar intervyulari\n"
+                "• Cheklangan nashrlar\n\n"
+                "🎯 Endi 'Maxsus Kontentlar' bo'limidan foydalanishingiz mumkin!"
             )
         
         # Foydalanuvchiga xabar
         try:
             await bot.send_message(user_id, success_message)
+            user_notified = True
         except Exception as e:
             print(f"Foydalanuvchiga xabar yuborishda xatolik: {e}")
+            user_notified = False
         
         # To'lov statusini yangilash
         db.update_payment_status(payment_id, "completed")
         
         # Admin ga xabar
-        await message.answer(
+        response_text = (
             f"✅ **To'lov #{payment_id} tasdiqlandi!**\n\n"
             f"👤 Foydalanuvchi: {user_name}\n"
             f"🆔 ID: {user_id}\n"
             f"🎯 Xizmat: {service_name}\n"
-            f"💵 Summa: {amount:,} so'm\n\n"
-            f"Foydalanuvchiga xabar yuborildi.",
-            reply_markup=admin_advanced_keyboard()
+            f"💵 Summa: {amount:,} so'm\n"
         )
+        
+        if user_notified:
+            response_text += f"\n✅ Foydalanuvchiga xabar yuborildi."
+        else:
+            response_text += f"\n⚠️ Foydalanuvchiga xabar yuborish muvaffaqiyatsiz."
+        
+        await message.answer(response_text)
         
     except Exception as e:
         await message.answer(f"❌ Xatolik: {e}")
+        
+# -*-*- ADMIN TASDIQLASH -*-*-
+@dp.message(F.text.startswith("✅ Tasdiqlash #"))
+async def confirm_premium_payment(message: types.Message):
+    """Premium obunani tasdiqlash"""
+    try:
+        payment_id = int(message.text.split("#")[1])
+        
+        # To'lov ma'lumotlarini olish
+        payment_info = db.get_payment_by_id(payment_id)
+        
+        if not payment_info:
+            await message.answer("❌ To'lov topilmadi!")
+            return
+            
+        user_id = payment_info[1]
+        service_type = payment_info[3]
+        service_name = payment_info[5]
+        amount = payment_info[2]
+        
+        # Foydalanuvchi ma'lumotlari
+        user_info = db.get_user(user_id)
+        user_name = user_info[2] if user_info else "Noma'lum"
+        
+        # Premium obuna berish (30 kun)
+        db.add_premium_subscription(user_id, 30, amount)
+        
+        # Foydalanuvchiga xabar
+        try:
+            await bot.send_message(
+                user_id,
+                "🎉 **TABRIKLAYMIZ! Premium Obuna Faollashtirildi!**\n\n"
+                "✅ **Sizga 30 kunlik premium obuna berildi!**\n\n"
+                "📋 **Ochilgan imkoniyatlar:**\n"
+                "• 🎬 Barcha kinolar va seriallar\n"
+                "• 📥 Yuklab olish huquqi\n"
+                "• 💎 Premium afzalliklar\n"
+                "• 🆕 Yangi kontentlar avtomatik ochiladi\n\n"
+                "⭐ **Endi barcha bo'limlardan foydalanishingiz mumkin!**"
+            )
+            user_notified = True
+        except Exception as e:
+            print(f"Foydalanuvchiga xabar yuborishda xatolik: {e}")
+            user_notified = False
+        
+        # To'lov statusini yangilash
+        db.update_payment_status(payment_id, "completed")
+        
+        # Admin ga xabar
+        response = (
+            f"✅ **Premium Obuna Tasdiqlandi!**\n\n"
+            f"👤 Foydalanuvchi: {user_name}\n"
+            f"🆔 ID: {user_id}\n"
+            f"💵 Summa: {amount:,} so'm\n"
+            f"🆔 To'lov ID: {payment_id}\n"
+        )
+        
+        if user_notified:
+            response += f"\n✅ Foydalanuvchiga xabar yuborildi."
+        else:
+            response += f"\n⚠️ Foydalanuvchiga xabar yuborish muvaffaqiyatsiz."
+        
+        await message.answer(response)
+        
+    except Exception as e:
+        await message.answer(f"❌ Xatolik: {e}")        
         
 # ==============================================================================
 # -*-*- FOYDALANUVCHILAR RO'YXATI HANDLERI -*-*-
